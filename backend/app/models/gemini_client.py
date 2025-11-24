@@ -15,7 +15,7 @@ class GeminiClient:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
 
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel("gemini-pro")
 
     async def run_gemini(
         self,
@@ -25,12 +25,14 @@ class GeminiClient:
     ) -> Dict[str, Any]:
         """Execute Gemini API request (non-streaming)"""
         try:
-            # Combine instruction with payload
-            prompt = f"{instruction}
+            # Multi-line formatted prompt
+            prompt = f"""
+{instruction}
 
 Payload: {payload}
 
-Context: {context}"
+Context: {context}
+"""
 
             response = self.model.generate_content(prompt)
 
@@ -39,6 +41,7 @@ Context: {context}"
                 "response": response.text,
                 "status": "success"
             }
+
         except Exception as e:
             return {
                 "model": "gemini-pro",
@@ -54,21 +57,24 @@ Context: {context}"
     ) -> AsyncIterator[Dict[str, Any]]:
         """Execute Gemini API request (streaming)"""
         try:
-            prompt = f"{instruction}
+            prompt = f"""
+{instruction}
 
 Payload: {payload}
 
-Context: {context}"
+Context: {context}
+"""
 
             response = self.model.generate_content(prompt, stream=True)
 
             for chunk in response:
-                if chunk.text:
+                if hasattr(chunk, "text") and chunk.text:
                     yield {
                         "model": "gemini-pro",
                         "chunk": chunk.text,
                         "status": "streaming"
                     }
+
         except Exception as e:
             yield {
                 "model": "gemini-pro",

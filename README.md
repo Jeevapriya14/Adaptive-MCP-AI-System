@@ -157,11 +157,15 @@ Load balancing ensures no single model is overloaded.
 - TailwindCSS
 - React Router
 
+## License
 
+MIT License
 
 ## Getting API Keys
 
 - **Gemini API**: https://makersuite.google.com/app/apikey
 - **MongoDB**: Use local instance or MongoDB Atlas (free tier)
 
+## Support
 
+For issues or questions, please open an issue on the repository.
