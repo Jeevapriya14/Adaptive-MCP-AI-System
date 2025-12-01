@@ -1,171 +1,205 @@
-# Adaptive MCP-AI System
+# SCOUTBUILD - Zoho Cliq AI Bot Engine
 
-A full-stack AI system that intelligently routes requests to different AI models (Gemini, TensorFlow, PyTorch) based on instruction analysis and load balancing.
+Complete dynamic backend system for business automation via Zoho Cliq.
 
-## Features
+## 🚀 Features
 
-- 🤖 Multi-model AI routing (Gemini, TensorFlow, PyTorch)
-- 📡 WebSocket streaming support
-- 💾 Session context management with MongoDB
-- 📊 Real-time dashboard and analytics
-- 🔒 Secure API key management via .env
-- ⚡ FastAPI backend with async support
-- ⚛️ React + Vite frontend with TailwindCSS
+✅ **Zoho Cliq Integration** - Single webhook endpoint (POST /webhook)
+✅ **Gemini AI** - Natural language understanding
+✅ **Step-by-Step Conversation** - Guided bot flows with back/skip/exit
+✅ **Email Collection** - Validates and stores user email
+✅ **Date Validation** - Prevents past dates
+✅ **MongoDB Cloud** - Full CRUD operations
+✅ **Redis Cloud** - Session management
+✅ **Google Calendar** - Auto-scheduling with invites
+✅ **HTML Email System** - Beautiful confirmation emails
+✅ **24h Reminders** - Automated email reminders
+✅ **External APIs** - Weather, News, Jobs, Market data
 
-## Project Structure
+## 📦 Installation
 
-```
-adaptive-mcp-ai-system/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── main.py         # Main API entry point
-│   │   ├── core/           # Core routing & integration logic
-│   │   ├── models/         # AI model integrations
-│   │   └── db/             # Database layer
-│   ├── .env.example        # Environment variables template
-│   └── requirements.txt    # Python dependencies
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── pages/         # Page components
-│   │   └── components/    # Reusable components
-│   └── package.json       # Node dependencies
-└── README.md
-```
-
-## Setup Instructions
-
-### Backend Setup
-
-1. Navigate to backend directory:
-```bash
-cd backend
-```
-
-2. Create virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Configure environment:
-```bash
-cp .env.example .env
-```
-
-5. Edit `.env` and add your Gemini API key:
-```
-GEMINI_API_KEY=your_actual_api_key_here
-MONGODB_URI=mongodb://localhost:27017
-```
-
-6. Run the backend:
-```bash
-uvicorn app.main:app --reload
-```
-
-Backend will run on http://localhost:8000
-
-### Frontend Setup
-
-1. Navigate to frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
 ```bash
 npm install
 ```
 
-3. Start development server:
+## 🔧 Configuration
+
+All environment variables are pre-configured in `.env` file:
+- MongoDB URI (your cluster)
+- Redis URL (your instance)
+- Gemini API key
+- Gmail credentials
+- Google Calendar OAuth
+- External API keys
+
+## 🚀 Start Server
+
 ```bash
-npm run dev
+npm start
 ```
 
-Frontend will run on http://localhost:3000
+Server runs on: **http://localhost:3000**
 
-## API Documentation
+## 📡 Zoho Cliq Integration
 
-Once the backend is running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+### Webhook Endpoint
 
-## Key Endpoints
+```
+POST http://localhost:3000/webhook
+Content-Type: text/plain
 
-- `POST /mcp/request` - Send MCP-style AI request
-- `WS /ws/{session_id}` - WebSocket streaming endpoint
-- `GET /session/{session_id}` - Get session context
-- `GET /logs` - Get routing logs
-- `GET /health` - Health check
-
-## Usage Examples
-
-### REST API Request
-
-```javascript
-const response = await fetch('http://localhost:8000/mcp/request', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    instruction: 'Analyze the sentiment of this review',
-    payload: { text: 'This product is amazing!' },
-    context: {}
-  })
-});
+schedule a meeting tomorrow with ravi@example.com
 ```
 
-### WebSocket Streaming
+### Response Format
 
-```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/session_123');
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log(data);
-};
-ws.send(JSON.stringify({
-  instruction: 'Explain quantum computing',
-  payload: {}
-}));
+```json
+{
+  "text": "📝 Meeting title?"
+}
 ```
 
-## Model Routing Logic
+## 🤖 Supported Bots
 
-- **Keywords "image", "classify", "photo"** → TensorFlow (MobileNetV2)
-- **Keywords "sentiment", "text", "review"** → PyTorch (Sentiment Analysis)
-- **All other requests** → Gemini API
+1. **Task** - Task management with priorities
+2. **Meeting** - Calendar scheduling with invites
+3. **Reminder** - Simple reminders
+4. **Leave** - Leave requests
+5. **Expense** - Expense claims
+6. **Invoice** - Invoice generation
+7. **Lead** - CRM lead capture
+8. **Incident** - IT incident reporting
+9. **Bug** - Bug tracking
+10. **Inventory** - Inventory management
 
-Load balancing ensures no single model is overloaded.
+## 📝 Conversation Flow
 
-## Technologies Used
+1. User sends message to Zoho Cliq
+2. Zoho Cliq forwards to `/webhook`
+3. Gemini AI detects intent and bot type
+4. System asks questions step-by-step
+5. User answers (or uses back/skip/exit)
+6. System validates each field
+7. On completion:
+   - Saves to MongoDB
+   - Creates calendar event (if meeting)
+   - Sends HTML confirmation email
+   - Schedules 24h reminder email
+   - Returns summary to Zoho Cliq
 
-**Backend:**
-- FastAPI
-- Motor (async MongoDB)
-- Google Generative AI (Gemini)
-- TensorFlow
-- PyTorch
-- WebSockets
+## 🎮 Flow Controls
 
-**Frontend:**
-- React 18
-- Vite
-- TailwindCSS
-- React Router
+- **back** - Go to previous question
+- **skip** - Skip optional field
+- **exit/cancel/quit** - Cancel conversation
 
-## License
+## 📧 Email System
 
-MIT License
+- **Confirmation Email** - Sent immediately after completion
+- **Reminder Email** - Sent 24 hours before event date
+- **HTML Template** - Beautiful, responsive design
+- **Bull Queue** - Reliable background processing
 
-## Getting API Keys
+## 📅 Google Calendar
 
-- **Gemini API**: https://makersuite.google.com/app/apikey
-- **MongoDB**: Use local instance or MongoDB Atlas (free tier)
+- Auto-creates events for meetings
+- Sends invites to all attendees
+- Returns event link
+- Timezone: Asia/Kolkata
 
-## Support
+## 🌐 External APIs
 
-For issues or questions, please open an issue on the repository.
+- **Weather** - OpenWeather API
+- **News** - NewsAPI
+- **Jobs** - Adzuna API
+- **Market** - CoinGecko API
+
+## 🗂️ Project Structure
+
+```
+scoutbuild/
+├── server.js              # Main entry point
+├── config/                # Configuration
+│   ├── redis.js
+│   ├── bull.js
+│   ├── gemini.js
+│   └── calendar.js
+├── models/                # MongoDB schemas
+│   ├── User.js
+│   ├── Conversation.js
+│   └── BotData.js
+├── routes/
+│   └── webhook.js         # Main webhook handler
+├── services/              # Business logic
+│   ├── conversationEngine.js
+│   ├── botDefinitions.js
+│   ├── crudService.js
+│   ├── calendarService.js
+│   ├── emailService.js
+│   └── externalAPIs.js
+└── workers/               # Background jobs
+    ├── emailWorker.js
+    └── reminderWorker.js
+```
+
+## 🧪 Testing
+
+### Test with cURL
+
+```bash
+curl -X POST http://localhost:3000/webhook \
+  -H "Content-Type: text/plain" \
+  -H "X-User-Id: test@example.com" \
+  -d "create a task for tomorrow"
+```
+
+### Expected Flow
+
+1. System asks: "📝 What is the task title?"
+2. User: "Complete API documentation"
+3. System asks: "📄 Task description?"
+4. User: "skip"
+5. System asks: "👤 Who is assigned? (email)"
+6. User: "john@example.com"
+7. ... continues until all fields collected
+8. System: "✅ TASK CREATED! ..."
+
+## 🔒 Security
+
+- Email validation
+- Date validation (no past dates)
+- Redis session expiry
+- Secure OAuth tokens
+- Environment variables for secrets
+
+## 📊 Monitoring
+
+Check health:
+```bash
+curl http://localhost:3000/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "mongodb": "connected",
+  "redis": "connected"
+}
+```
+
+## 🚀 Production Deployment
+
+1. Update environment variables
+2. Use PM2 for process management:
+```bash
+pm2 start server.js --name scoutbuild
+```
+
+## 🤝 Support
+
+All services are pre-configured and working. System is production-ready!
+
+---
+
+**Built with ❤️ for Zoho Cliq Integration**
