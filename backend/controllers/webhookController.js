@@ -3,13 +3,13 @@ const Conversation = require('../models/Conversation');
 const User = require('../models/User');
 const { callGemini } = require('../config/gemini');
 const { createRedisClient } = require('../config/redis');
-const conversationEngine = require('../services/conversationEngine');
-const crudService = require('../services/crudService');
+const conversationEngine = require('../../services/conversationEngine');
+const crudService = require('../../services/crudService');
 const { getGreeting } = require('../utils/greetings');
 const { validateEmail, extractEmailFromText } = require('../utils/validators');
-const botDefinitions = require('../services/botDefinitions');
-const { getWeather, getNews, getMarketData } = require('../services/externalAPIs');
-const emailService = require('../services/emailService');
+const botDefinitions = require('../../services/botDefinitions');
+const { getWeather, getNews, getMarketData } = require('../../services/externalAPIs');
+const emailService = require('../../services/emailService');
 
 module.exports = async (req, res) => {
   try {

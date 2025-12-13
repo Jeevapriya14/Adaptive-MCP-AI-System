@@ -15,6 +15,12 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
+console.log('MONGODB_URI from env =>', process.env.MONGODB_URI);
+
+if (!process.env.MONGODB_URI) {
+  console.error('❌ Missing MONGODB_URI environment variable');
+  process.exit(1);
+}
 
 // ========== MONGODB CONNECTION ==========
 mongoose.connect(process.env.MONGODB_URI)
@@ -25,11 +31,11 @@ mongoose.connect(process.env.MONGODB_URI)
   });
 
 // ========== REDIS CONNECTION ==========
-const redisClient = require('./config/redis');
+const redisClient = require('./config/redis.js');
 
 // ========== START WORKERS ==========
-require('./workers/emailWorker');
-require('./workers/reminderWorker');
+require('./workers/emailWorker.js');
+require('./workers/reminderWorker.js');
 
 // ========== ROUTES ==========
 // ❌ OLD (WRONG):
