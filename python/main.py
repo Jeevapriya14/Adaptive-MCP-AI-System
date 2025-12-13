@@ -1,11 +1,12 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 """
 FastAPI Backend for Adaptive MCP-AI System
 """
 print("🔥 main.py started")
 
-from app.core.integration_engine import IntegrationEngine
-# rest of imports...
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -20,11 +21,39 @@ from app.core.data_synchronizer import DataSynchronizer
 from app.db.mongo import MongoDB
 
 # ---------------------------------------------------
+# Initialize Components (global)
+# ---------------------------------------------------
+db = MongoDB()
+router = AdaptiveRouter(db)
+engine = IntegrationEngine(db)
+synchronizer = DataSynchronizer(db)
+
+# ---------------------------------------------------
+# Lifespan (REPLACES startup/shutdown events)
+# ---------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await db.connect()
+    print("✅ Connected to MongoDB successfully")
+
+    yield  # ---- app runs here ----
+
+    # Shutdown
+    await db.disconnect()
+    print("🛑 Disconnected from MongoDB")
+
+# ---------------------------------------------------
 # Initialize App
 # ---------------------------------------------------
-app = FastAPI(title="Adaptive MCP-AI System")
+app = FastAPI(
+    title="Adaptive MCP-AI System",
+    lifespan=lifespan
+)
 
-# CORS middleware
+# ---------------------------------------------------
+# CORS
+# ---------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,33 +63,13 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------
-# Initialize Components
+# Models
 # ---------------------------------------------------
-db = MongoDB()
-router = AdaptiveRouter(db)
-engine = IntegrationEngine(db)
-synchronizer = DataSynchronizer(db)
-
-
 class MCPRequest(BaseModel):
     session_id: Optional[str] = None
     instruction: str
     context: Optional[Dict[str, Any]] = {}
     payload: Optional[Dict[str, Any]] = {}
-
-
-# ---------------------------------------------------
-# Startup / Shutdown
-# ---------------------------------------------------
-@app.on_event("startup")
-async def startup_event():
-    await db.connect()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    await db.disconnect()
-
 
 # ---------------------------------------------------
 # Root
@@ -77,7 +86,6 @@ async def root():
             "routing_logs": "/logs",
         },
     }
-
 
 # ---------------------------------------------------
 # MCP Request Handler
@@ -107,7 +115,10 @@ async def mcp_request(request: MCPRequest):
         })
 
         # Route instruction
-        selected_model = await router.route(request.instruction, request.payload)
+        selected_model = await router.route(
+            request.instruction,
+            request.payload
+        )
 
         # Execute model
         result = await engine.execute(
@@ -144,7 +155,6 @@ async def mcp_request(request: MCPRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ---------------------------------------------------
 # WebSocket Endpoint
 # ---------------------------------------------------
@@ -161,7 +171,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             payload = request_data.get("payload", {})
             context = request_data.get("context", {})
 
-            # Load or create context
             session_context = await synchronizer.get_context(session_id)
             if session_context is None:
                 session_context = {
@@ -171,16 +180,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "context": context,
                 }
 
-            # Route instruction
             model_name = await router.route(instruction, payload)
 
-            # Send model selection
             await websocket.send_json({
                 "type": "model_selected",
                 "model": model_name,
             })
 
-            # Stream response
             async for chunk in engine.execute_stream(
                 model_name=model_name,
                 instruction=instruction,
@@ -192,14 +198,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "data": chunk,
                 })
 
-            # Final response
             await websocket.send_json({
                 "type": "final",
                 "model_used": model_name,
                 "session_id": session_id,
             })
 
-            # Log session update
             session_context["messages"].append({
                 "instruction": instruction,
                 "model_used": model_name,
@@ -208,14 +212,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             await synchronizer.update_context(session_id, session_context)
 
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected: {session_id}")
+        print(f"🔌 WebSocket disconnected: {session_id}")
 
     except Exception as e:
         await websocket.send_json({
             "type": "error",
             "error": str(e),
         })
-
 
 # ---------------------------------------------------
 # Get Session
@@ -227,7 +230,6 @@ async def get_session(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
     return context
 
-
 # ---------------------------------------------------
 # Logs
 # ---------------------------------------------------
@@ -236,10 +238,24 @@ async def get_logs(limit: int = 50):
     logs = await db.get_routing_logs(limit)
     return {"logs": logs}
 
-
 # ---------------------------------------------------
-# Health Check
+# Health
 # ---------------------------------------------------
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+# ---------------------------------------------------
+# Run with: python main.py
+# ---------------------------------------------------
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True
+    )

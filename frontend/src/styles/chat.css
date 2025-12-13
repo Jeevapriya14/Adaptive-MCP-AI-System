@@ -10,8 +10,7 @@ body {
   color: #ffffff;
 }
 
-/* ✅ Center helper */
-.center {
+.app.center {
   display: flex;
   align-items: center;
   justify-content: center;
