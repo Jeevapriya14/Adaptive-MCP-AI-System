@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0f172a;
+  --panel: #020617;
+  --text: #e5e7eb;
+}
+
+.light {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --text: #020617;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}

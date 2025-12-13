@@ -1,0 +1,192 @@
+body {
+  margin: 0;
+  background: #0f172a;
+  font-family: system-ui, sans-serif;
+}
+.app {
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #0b1220, #0e1a33);
+  color: #ffffff;
+}
+
+/* ✅ Center helper */
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header {
+  padding: 16px;
+  background: #020617;
+  color: #e5e7eb;
+  font-weight: bold;
+  text-align: center;
+}
+
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.msg {
+  max-width: 70%;
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+}
+
+.msg.user {
+  background: #2563eb;
+  color: white;
+  margin-left: auto;
+}
+
+.msg.bot {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+.input-area {
+  display: flex;
+  padding: 12px;
+  background: #020617;
+}
+
+.input-area input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  outline: none;
+}
+
+.input-area button {
+  margin-left: 8px;
+  padding: 10px 16px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+
+.email-box {
+  background: #020617;
+  padding: 30px;
+  border-radius: 12px;
+  width: 320px;
+  color: #e5e7eb;
+  text-align: center;
+}
+
+.email-box input {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+}
+
+.email-box button {
+  margin-top: 12px;
+  width: 100%;
+  padding: 10px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+}
+.msg.system {
+  background: transparent;
+  color: #94a3b8;
+  text-align: center;
+  font-size: 13px;
+}
+
+.command-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: #020617;
+  overflow-x: auto;
+}
+
+.command-bar button {
+  background: #1e293b;
+  color: #e5e7eb;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.card {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.card a {
+  display: inline-block;
+  margin-top: 6px;
+  color: #60a5fa;
+}
+
+.msg.bot {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+@media (max-width: 640px) {
+  .msg {
+    max-width: 90%;
+    font-size: 14px;
+  }
+
+  .header {
+    font-size: 16px;
+  }
+
+  .input-area input {
+    font-size: 16px;
+  }
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.theme-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+.email-card {
+  width: 360px;
+  max-width: 90%;
+  padding: 24px;
+  border-radius: 14px;
+  background: #0f172a;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+}
+
+

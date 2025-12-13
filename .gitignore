@@ -1,8 +1,10 @@
+# node / build stuff
 node_modules/
+dist/
+build/
+
+# env files (ALL env files, including frontend)
 .env
 .env.local
 .env.production
-dist/
-build/
-frontend/
-.env
+frontend/.env
