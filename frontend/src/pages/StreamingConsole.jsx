@@ -80,8 +80,6 @@ function StreamingConsole() {
 
       wsRef.current.send(JSON.stringify(message));
       setMessages(prev => [...prev, { type: 'sent', content: message }]);
-
-      // Clear inputs
       setInstruction('');
       setPayload('{}');
     } catch (error) {
@@ -94,7 +92,7 @@ function StreamingConsole() {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">WebSocket Streaming Console</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Control Section */}
+        {}
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -173,7 +171,7 @@ function StreamingConsole() {
           </button>
         </div>
 
-        {/* Messages Section */}
+        {}
         <div>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Messages</h2>
           <div className="bg-gray-900 rounded-lg p-4 h-[600px] overflow-y-auto">

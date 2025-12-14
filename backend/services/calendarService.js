@@ -1,13 +1,12 @@
-// services/calendarService.js
+
 const { createZoomMeeting } = require("./zoomMeetingService");
 
 async function schedule(data) {
-  console.log("📅 calendarService.schedule() INPUT:", JSON.stringify(data, null, 2));
+  console.log("calendarService.schedule() INPUT:", JSON.stringify(data, null, 2));
 
   if (!data.date) throw new Error("Missing date");
   if (!data.time) throw new Error("Missing time");
 
-  // Build ISO datetime for Zoom
   const startISO = new Date(`${data.date}T${data.time}:00`);
   if (isNaN(startISO.getTime())) {
     throw new Error("Invalid date/time");
@@ -22,9 +21,8 @@ async function schedule(data) {
     startISO: startISO.toISOString()
   };
 
-  console.log("📅 Final Zoom Payload:", JSON.stringify(zoomPayload, null, 2));
+  console.log("Final Zoom Payload:", JSON.stringify(zoomPayload, null, 2));
 
-  // Call Zoom
   const meeting = await createZoomMeeting(zoomPayload);
 
   return {

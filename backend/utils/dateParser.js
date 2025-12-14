@@ -1,18 +1,12 @@
 const { callGemini } = require('../config/gemini');
 
-/**
- * Normalize natural language date to ISO format
- */
+
 async function normalizeDate(value) {
   if (!value) return null;
-  
-  // If already valid ISO date
   const d = new Date(value);
   if (!isNaN(d.getTime())) {
     return d.toISOString();
   }
-  
-  // Use Gemini to parse natural language
   const prompt = `Convert this natural language date/time to ISO 8601 format.
 Current date/time: ${new Date().toISOString()}
 

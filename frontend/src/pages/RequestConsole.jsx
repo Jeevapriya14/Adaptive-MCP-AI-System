@@ -36,8 +36,6 @@ function RequestConsole() {
 
       const data = await res.json();
       setResponse(data);
-
-      // Update session ID if returned
       if (data.session_id && !sessionId) {
         setSessionId(data.session_id);
       }
@@ -53,7 +51,7 @@ function RequestConsole() {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">MCP Request Console</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Input Section */}
+        {}
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -97,7 +95,7 @@ function RequestConsole() {
           </button>
         </div>
 
-        {/* Response Section */}
+        {}
         <div>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Response</h2>
           {response ? (
@@ -110,7 +108,7 @@ function RequestConsole() {
         </div>
       </div>
 
-      {/* Examples */}
+      {}
       <div className="mt-12">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Example Instructions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

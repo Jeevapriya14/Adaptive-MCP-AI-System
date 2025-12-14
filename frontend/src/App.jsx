@@ -1,4 +1,3 @@
-// App.jsx
 import ErrorBoundary from "./components/ErrorBoundary";
 import ChatPage from "./pages/ChatPage";
 

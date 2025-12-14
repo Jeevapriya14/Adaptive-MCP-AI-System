@@ -1,4 +1,4 @@
-// backend/config/bull.js
+
 const Queue = require('bull');
 
 const redisConfig = {
@@ -13,11 +13,11 @@ const emailQueue = new Queue('email-queue', redisConfig);
 const reminderQueue = new Queue('reminder-queue', redisConfig);
 
 emailQueue.on('error', (err) => {
-  console.error('❌ EmailQueue error:', err.message);
+  console.error('EmailQueue error:', err.message);
 });
 
 reminderQueue.on('error', (err) => {
-  console.error('❌ ReminderQueue error:', err.message);
+  console.error('ReminderQueue error:', err.message);
 });
 
 module.exports = {

@@ -10,9 +10,6 @@ class IntegrationEngine:
         self.db = db
         self.gemini = GeminiClient()   # Only Gemini model enabled
 
-    # ---------------------------------------------------------
-    # NON-STREAMING EXECUTION
-    # ---------------------------------------------------------
     async def execute(
         self,
         model_name: str,
@@ -34,9 +31,6 @@ class IntegrationEngine:
         except Exception as e:
             return {"error": str(e)}
 
-    # ---------------------------------------------------------
-    # STREAMING EXECUTION
-    # ---------------------------------------------------------
     async def execute_stream(
         self,
         model_name: str,

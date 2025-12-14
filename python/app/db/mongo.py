@@ -32,7 +32,7 @@ class MongoDB:
 
         except Exception as e:
             print(f"⚠️ MongoDB connection failed: {e}")
-            print("📝 Running in-memory mode (data will not persist)")
+            print(" Running in-memory mode (data will not persist)")
             self._setup_memory_store()
 
     def _setup_memory_store(self):

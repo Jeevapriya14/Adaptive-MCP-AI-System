@@ -1,8 +1,5 @@
 {
   "typescript.tsserver.exclude": [
-    "**/node_modules/**"
-  ],
-  "files.exclude": {
-    "**/node_modules": true
+    "**/node_modulesnode_modules": true
   }
 }

@@ -1,12 +1,7 @@
-// services/crudService.js
 "use strict";
 
 const BotData = require("../models/BotData");
 
-/* ============================================================
-   createRecord (current signature) accepts:
-   { botType, userEmail, data }
-   ============================================================ */
 async function createRecord({ botType, userEmail, data }) {
   if (!botType) throw new Error("botType missing");
   if (!userEmail) throw new Error("userEmail missing");
@@ -21,14 +16,9 @@ async function createRecord({ botType, userEmail, data }) {
   return rec;
 }
 
-/* ============================================================
-   create (convenience wrapper) used by callers that call:
-     crudService.create(botType, data, userEmail)
-   ============================================================ */
+
 async function create(botType, data = {}, userEmail) {
-  // accept either (botType, data, userEmail) or (object)
   if (typeof botType === 'object' && botType !== null) {
-    // call createRecord({botType, userEmail, data})
     return createRecord(botType);
   }
   if (!userEmail) {
@@ -37,10 +27,6 @@ async function create(botType, data = {}, userEmail) {
   return createRecord({ botType, userEmail, data });
 }
 
-/* ============================================================
-   READ RECORDS (Generic List)
-   filter: { botType?, userEmail?, limit?, lean? }
-   ============================================================ */
 async function list({ botType = null, userEmail = null, limit = 200, lean = true } = {}) {
   const q = { status: { $ne: "deleted" } };
 
@@ -54,9 +40,6 @@ async function list({ botType = null, userEmail = null, limit = 200, lean = true
   return lean ? cursor.lean() : cursor;
 }
 
-/* ============================================================
-   readRecords – older alias (used by fuzzyFind)
-   ============================================================ */
 async function readRecords({ botName = null, userEmail = null, limit = 200 } = {}) {
   const q = { status: { $ne: "deleted" } };
   if (botName) q.botType = botName;
@@ -68,9 +51,6 @@ async function readRecords({ botName = null, userEmail = null, limit = 200 } = {
     .lean();
 }
 
-/* ============================================================
-   getByType – for "show all meetings" etc
-   ============================================================ */
 async function getByType(userEmail, botType) {
   if (!userEmail) return [];
   const q = {
@@ -81,9 +61,6 @@ async function getByType(userEmail, botType) {
   return BotData.find(q).sort({ createdAt: -1 }).lean();
 }
 
-/* ============================================================
-   getAllByEmail – for "show all"
-   ============================================================ */
 async function getAllByEmail(userEmail) {
   if (!userEmail) return [];
   const q = {
@@ -93,16 +70,11 @@ async function getAllByEmail(userEmail) {
   return BotData.find(q).sort({ createdAt: -1 }).lean();
 }
 
-/* ============================================================
-   softDeleteById — safer than direct delete
-   ============================================================ */
 async function softDeleteById(id, userEmail) {
   if (!id) return null;
 
   const rec = await BotData.findById(id);
   if (!rec) return null;
-
-  // Security: ensure only owner can delete
   if (userEmail && rec.email !== userEmail.toLowerCase()) return null;
 
   rec.status = "deleted";
@@ -110,9 +82,6 @@ async function softDeleteById(id, userEmail) {
   return true;
 }
 
-/* ============================================================
-   deleteById — HARD DELETE (rare use)
-   ============================================================ */
 async function deleteById(id, userEmail) {
   if (!id) return null;
 
@@ -125,11 +94,7 @@ async function deleteById(id, userEmail) {
   return true;
 }
 
-/* ============================================================
-   deleteMany – supports:
-      deleteMany({ email })
-      deleteMany({ email, botType })
-   ============================================================ */
+
 async function deleteMany(filter = {}) {
   const q = {};
 
@@ -138,20 +103,15 @@ async function deleteMany(filter = {}) {
   q.status = { $ne: "deleted" };
 
   const res = await BotData.updateMany(q, { status: "deleted" });
-  // Mongo may return modifiedCount or nModified depending on driver
   return (res.modifiedCount || res.nModified || 0);
 }
 
-/* ============================================================
-   updateById — patch update on "data" object
-   ============================================================ */
+
 async function updateById(id, userEmail, updates = {}) {
   const rec = await BotData.findById(id);
   if (!rec) return null;
 
   if (userEmail && rec.email !== userEmail.toLowerCase()) return null;
-
-  // Merge-level update into "data" field
   rec.data = {
     ...(rec.data || {}),
     ...(updates.data || updates),
@@ -162,9 +122,7 @@ async function updateById(id, userEmail, updates = {}) {
 }
 
 module.exports = {
-  // keep old names
   createRecord,
-  // new convenience alias used elsewhere
   create,
   list,
   readRecords,

@@ -1,9 +1,7 @@
 const axios = require("axios");
 const qs = require("qs");
 
-/**
- * Get Zoom Access Token using Server-to-Server OAuth
- */
+
 async function getZoomAccessToken() {
   const tokenUrl = "https://api.zoom.us/oauth/token"; // FIXED URL
 

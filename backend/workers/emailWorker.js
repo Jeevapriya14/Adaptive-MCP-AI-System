@@ -1,7 +1,5 @@
 const Queue = require("bull");
 const nodemailer = require("nodemailer");
-
-// Email queue
 const emailQueue = new Queue("email-queue", {
   redis: {
     host: process.env.REDIS_HOST,
@@ -9,8 +7,6 @@ const emailQueue = new Queue("email-queue", {
     password: process.env.REDIS_PASSWORD
   }
 });
-
-// Transporter (Gmail / SMTP)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
   port: 587,
@@ -20,25 +16,21 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS
   }
 });
-
-// Process jobs
 emailQueue.process(async (job) => {
   const { to, subject, text, html } = job.data;
 
   await transporter.sendMail({
-    from: `"ScoutBuild AI" <${process.env.SMTP_USER}>`,
+    from: `"MCP AI" <${process.env.SMTP_USER}>`,
     to,
     subject,
     text,
     html
   });
 
-  console.log(`📧 Email sent → ${to}`);
+  console.log(` Email sent → ${to}`);
 });
-
-// Logs
 emailQueue.on("ready", () => {
-  console.log("📧 Email Worker ready");
+  console.log(" Email Worker ready");
 });
 
 emailQueue.on("error", (err) => {

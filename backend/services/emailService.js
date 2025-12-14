@@ -1,10 +1,7 @@
-// services/emailService.js
 const nodemailer = require('nodemailer');
 const { emailQueue, reminderQueue } = require('../config/bull');
 
-/* ---------------------------------------------------------
-   TRANSPORTER (PRODUCTION GMAIL SMTP)
---------------------------------------------------------- */
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
@@ -16,9 +13,7 @@ const transporter = nodemailer.createTransport({
 });
 
 
-/* ---------------------------------------------------------
-   SEND CONFIRMATION EMAIL (HTML)
---------------------------------------------------------- */
+
 async function sendConfirmation(email, botType, data) {
   try {
     const html = generateHTML(botType, data);
@@ -26,21 +21,19 @@ async function sendConfirmation(email, botType, data) {
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: email,
-      subject: `✅ ${botType.toUpperCase()} Created — ScoutBuild`,
+      subject: `✅ ${botType.toUpperCase()} Created — MCP AI`,
       html
     };
 
     await emailQueue.add({ mailOptions });
 
-    console.log(`📧 Confirmation queued → ${email}`);
+    console.log(` Confirmation queued → ${email}`);
   } catch (err) {
     console.error("❌ sendConfirmation Error →", err?.message || err);
   }
 }
 
-/* ---------------------------------------------------------
-   SEND PLAIN TEXT EMAIL (Weather, News, Crypto, Market, Coding)
---------------------------------------------------------- */
+
 async function sendPlainText(email, subject, text) {
   try {
     const mailOptions = {
@@ -52,15 +45,13 @@ async function sendPlainText(email, subject, text) {
 
     await emailQueue.add({ mailOptions });
 
-    console.log(`📨 Plain email queued → ${email}`);
+    console.log(` Plain email queued → ${email}`);
   } catch (err) {
     console.error("❌ sendPlainText Error →", err?.message || err);
   }
 }
 
-/* ---------------------------------------------------------
-   SEND REMINDER MAIL (1 DAY BEFORE)
---------------------------------------------------------- */
+
 async function scheduleReminder(email, recordId, botType, data) {
   try {
     const rawDate = data.date || data.dueDate || data.startDate || data.departureDate;
@@ -91,9 +82,7 @@ async function scheduleReminder(email, recordId, botType, data) {
   }
 }
 
-/* ---------------------------------------------------------
-   HTML TEMPLATE (Beautiful UI)
---------------------------------------------------------- */
+
 function generateHTML(botType, data) {
   let rows = "";
 
@@ -154,12 +143,12 @@ function generateHTML(botType, data) {
         </div>
 
         <div style="padding:20px;">
-          <h2 style="margin-bottom:10px;">📌 Details:</h2>
+          <h2 style="margin-bottom:10px;"> Details:</h2>
           <table>${rows}</table>
         </div>
 
         <div class="footer">
-          🤖 Powered by <b>ScoutBuild AI Bot Engine</b>
+           Powered by <b>MCP AI Bot Engine</b>
         </div>
       </div>
     </body>
@@ -167,9 +156,7 @@ function generateHTML(botType, data) {
   `;
 }
 
-/* ---------------------------------------------------------
-   Convert key → readable format
---------------------------------------------------------- */
+
 function formatLabel(str) {
   return str
     .replace(/([A-Z])/g, " $1")
@@ -178,9 +165,7 @@ function formatLabel(str) {
     .trim();
 }
 
-/* ---------------------------------------------------------
-   EXPORTS
---------------------------------------------------------- */
+
 module.exports = {
   sendConfirmation,
   sendPlainText,

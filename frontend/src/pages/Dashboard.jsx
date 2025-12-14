@@ -22,8 +22,6 @@ function Dashboard() {
       const response = await fetch('/logs?limit=50');
       const data = await response.json();
       setLogs(data.logs);
-
-      // Calculate stats
       const total = data.logs.length;
       const gemini = data.logs.filter(log => log.model_selected === 'gemini').length;
       const tensorflow = data.logs.filter(log => log.model_selected === 'tensorflow').length;
@@ -41,7 +39,7 @@ function Dashboard() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
 
-      {/* Stats Cards */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-gray-600 text-sm font-medium mb-2">Total Requests</div>
@@ -73,7 +71,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Routing Logs */}
+      {}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Recent Routing Logs</h2>

@@ -4,13 +4,13 @@ A full-stack AI system that intelligently routes requests to different AI models
 
 ## Features
 
-- 🤖 Multi-model AI routing (Gemini, TensorFlow, PyTorch)
-- 📡 WebSocket streaming support
-- 💾 Session context management with MongoDB
-- 📊 Real-time dashboard and analytics
-- 🔒 Secure API key management via .env
-- ⚡ FastAPI backend with async support
-- ⚛️ React + Vite frontend with TailwindCSS
+-  Multi-model AI routing (Gemini, TensorFlow, PyTorch)
+-  WebSocket streaming support
+-  Session context management with MongoDB
+-  Real-time dashboard and analytics
+-  Secure API key management via .env
+-  FastAPI backend with async support
+-  React + Vite frontend with TailwindCSS
 
 ## Project Structure
 
@@ -44,7 +44,7 @@ cd backend
 2. Create virtual environment:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  
 ```
 
 3. Install dependencies:
@@ -65,7 +65,11 @@ MONGODB_URI=mongodb://localhost:27017
 
 6. Run the backend:
 ```bash
-uvicorn app.main:app --reload
+cd python
+python main.py
+
+cd backend
+npm start
 ```
 
 Backend will run on http://localhost:8000

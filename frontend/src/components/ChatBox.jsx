@@ -29,7 +29,6 @@ export default function ChatBox() {
     setLoading(true);
     try {
   if (!STREAMING) {
-    // 🔹 NORMAL (current backend)
     const res = await sendMessage(input);
 
     push(
@@ -40,7 +39,6 @@ export default function ChatBox() {
       )
     );
   } else {
-    // 🔹 FUTURE STREAMING MODE (backend not ready yet)
     let buffer = "";
 
     const botMsg = createMessage(MESSAGE_TYPES.BOT, "");

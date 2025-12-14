@@ -16,7 +16,6 @@ reminderQueue.process(async (job) => {
   const { email, recordId, botType, data } = job.data;
   
   try {
-    // Verify record still exists and is active
     const record = await BotData.findOne({ _id: recordId, status: { $ne: 'deleted' } });
     if (!record) {
       console.log(`⚠️ Record ${recordId} no longer active, skipping reminder`);
@@ -43,13 +42,13 @@ reminderQueue.process(async (job) => {
           </div>
           <div class="content">
             <div class="alert">
-              <h2 style="margin-top: 0;">📅 Your ${botType} is scheduled for TOMORROW</h2>
+              <h2 style="margin-top: 0;"> Your ${botType} is scheduled for TOMORROW</h2>
             </div>
             <h3>Details:</h3>
             <pre>${JSON.stringify(data, null, 2)}</pre>
           </div>
           <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
-            <p>🤖 Automated reminder from ScoutBuild AI Engine</p>
+            <p> Automated reminder from MCP AI Engine</p>
           </div>
         </div>
       </body>

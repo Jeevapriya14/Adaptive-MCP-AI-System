@@ -25,7 +25,6 @@ class GeminiClient:
     ) -> Dict[str, Any]:
         """Execute Gemini API request (non-streaming)"""
         try:
-            # Multi-line formatted prompt
             prompt = f"""
 {instruction}
 

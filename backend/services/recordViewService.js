@@ -1,11 +1,8 @@
-// services/recordViewService.js
 'use strict';
 
 const crudService = require('./crudService');
 
-/* ----------------------------------------------------
-   Helpers
----------------------------------------------------- */
+
 
 function safeJsonExtract(txt) {
   if (!txt || typeof txt !== 'string') return null;
@@ -50,9 +47,7 @@ function formatRecords(items) {
   }).join('\n');
 }
 
-/* ----------------------------------------------------
-   fuzzyFind using crudService.list
----------------------------------------------------- */
+
 async function fuzzyFind({ botType = null, userEmail = null, text = '', limit = 200 }) {
   const items = await crudService
     .list({
@@ -83,16 +78,14 @@ async function fuzzyFind({ botType = null, userEmail = null, text = '', limit = 
   });
 }
 
-/* ----------------------------------------------------
-   Main Handler
----------------------------------------------------- */
+
 async function handleRecordView(raw, userMessage, sessionId, userEmail) {
   const msg = (userMessage || '').trim();
   const lower = msg.toLowerCase();
 
   if (!msg) return 'Tell me what to do: "show all", "delete id <id>", etc.';
 
-  /* ---------------- DELETE ALL ---------------- */
+  
   if (/\bdelete all\b/i.test(lower)) {
     if (!userEmail) return 'I need your email to delete your records.';
 
@@ -128,7 +121,7 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
     }
   }
 
-  /* ---------------- DELETE BY ID ---------------- */
+  
   const delId = lower.match(
     /\bdelete\s+(?:[a-z]+\s+)?id\s*[:=]?\s*([0-9a-fA-F]{6,64})/i
   );
@@ -146,7 +139,7 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
     }
   }
 
-  /* ---------------- NATURAL DELETE ---------------- */
+  
   if (
     /^delete\s+(my|the)\s+(meeting|task|reminder|interview|travel)/i.test(lower) &&
     !/id\s+/i.test(lower)
@@ -182,7 +175,7 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
     );
   }
 
-  /* ---------------- UPDATE BY ID ---------------- */
+  
   if (/^update\b/i.test(lower)) {
     if (!userEmail) return 'I need your email to update records.';
 
@@ -219,8 +212,6 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
         return 'Server error updating record.';
       }
     }
-
-    // natural update → need id
     const botMatch = lower.match(
       /\b(meeting|task|reminder|interview|travel)\b/
     );
@@ -251,7 +242,7 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
     } title to ...`;
   }
 
-  /* ---------------- LIST / SHOW ---------------- */
+  
   const list = lower.match(
     /\b(show|list|view)\s+(all\s+)?(meetings|tasks|reminders|interviews|travel)?\b/
   );
@@ -286,7 +277,7 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
     }
   }
 
-  /* ---------------- HELP ---------------- */
+  
   return `Record commands:
 • show all
 • show all meetings
@@ -297,7 +288,7 @@ async function handleRecordView(raw, userMessage, sessionId, userEmail) {
 `;
 }
 
-/* ---------------------------------------------------- */
+
 module.exports = {
   handleRecordView,
   fuzzyFind,

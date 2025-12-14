@@ -10,7 +10,6 @@ from PIL import Image
 
 class TensorFlowModel:
     def __init__(self):
-        # Load pre-trained MobileNetV2
         self.model = tf.keras.applications.MobileNetV2(
             weights='imagenet',
             include_top=True
@@ -21,7 +20,6 @@ class TensorFlowModel:
     def predict_image(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Predict image classification"""
         try:
-            # Check if payload contains image data
             if "image_url" in payload:
                 return {
                     "model": "tensorflow-mobilenetv2",
@@ -31,11 +29,9 @@ class TensorFlowModel:
                 }
 
             if "image_base64" in payload:
-                # Decode base64 image
                 image_data = base64.b64decode(payload["image_base64"])
                 image = Image.open(BytesIO(image_data))
 
-                # Preprocess image
                 image = image.resize((224, 224))
                 image_array = np.array(image)
 
@@ -45,7 +41,6 @@ class TensorFlowModel:
                 image_array = np.expand_dims(image_array, axis=0)
                 image_array = self.preprocess_input(image_array)
 
-                # Make prediction
                 predictions = self.model.predict(image_array)
                 decoded = self.decode_predictions(predictions, top=5)[0]
 
@@ -65,7 +60,6 @@ class TensorFlowModel:
                     "status": "success"
                 }
 
-            # Demo mode - return sample prediction
             return {
                 "model": "tensorflow-mobilenetv2",
                 "message": "Demo mode - no image provided",

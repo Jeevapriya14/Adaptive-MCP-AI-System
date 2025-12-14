@@ -1,4 +1,3 @@
-// services/zoomMeetingService.js
 require("dotenv").config();
 const axios = require("axios");
 const qs = require("qs");
@@ -28,35 +27,20 @@ async function getZoomAccessToken() {
     throw err;
   }
 }
-
-
-// =============================================
-// MAIN FUNCTION — ALWAYS WORKS
-// Accepts: { date, time, title, agenda, duration }
-// OR: { startISO }
-// =============================================
 async function createZoomMeeting(data) {
   try {
-    console.log("📌 Incoming raw data for Zoom:", data);
+    console.log(" Incoming raw data for Zoom:", data);
 
     let startISO = null;
-
-    // CASE 1: if startISO exists
     if (data.startISO) {
       startISO = new Date(data.startISO).toISOString();
     }
-
-    // CASE 2: If date contains T → it's already ISO
     if (!startISO && data.date && data.date.includes("T")) {
       startISO = new Date(data.date).toISOString();
     }
-
-    // CASE 3: If date + time provided → combine
     if (!startISO && data.date && data.time) {
       startISO = new Date(`${data.date}T${data.time}:00`).toISOString();
     }
-
-    // If STILL no startISO → error
     if (!startISO) {
       throw new Error("Missing date or time");
     }

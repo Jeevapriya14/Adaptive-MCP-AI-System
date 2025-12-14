@@ -1,4 +1,4 @@
-// controllers/webhookController.js
+
 const Conversation = require('../models/Conversation');
 const User = require('../models/User');
 const { callGemini } = require('../config/gemini');
@@ -14,7 +14,6 @@ const emailService = require('../../services/emailService');
 module.exports = async (req, res) => {
   try {
     const userMessage = (req.body?.text || '').trim();
-    // Prefer explicit email fields from webhook payload
     const incomingEmail = (req.body?.email || req.body?.user?.email || '').toString().trim();
     const userEmailFromText = extractEmailFromText(userMessage);
     const userEmail = incomingEmail || userEmailFromText || null;
@@ -23,24 +22,18 @@ module.exports = async (req, res) => {
       return res.json({ text: 'Please send a message.' });
     }
 
-    console.log(`\n📩 Incoming message: ${userMessage} (email: ${userEmail || 'none'})`);
-
-    // ========== GREETING DETECTION ==========
+    console.log(`\nIncoming message: ${userMessage} (email: ${userEmail || 'none'})`);
     const lc = userMessage.toLowerCase();
     if (['hi', 'hello', 'hey', 'hola'].includes(lc)) {
       const greeting = getGreeting();
       return res.json({
         text: `${greeting}\n\nI'm your AI assistant powered by Gemini. I can help with:\n\n` +
-              `✅ Task Manager\n✅ Meeting Scheduler (with Zoho link)\n✅ Travel Planner\n` +
-              `✅ Reminder Bot\n✅ Interview Scheduler\n✅ Weather Bot\n✅ News Bot\n` +
-              `✅ Crypto Bot\n✅ Market Bot\n✅ Business Insights\n✅ Coding Bot\n✅ Chat Bot\n\n` +
-              `Just tell me what you need! 🚀`
+              `Task Manager\nMeeting Scheduler (with Zoho link)\nTravel Planner\n` +
+              `Reminder Bot\nInterview Scheduler\nWeather Bot\nNews Bot\n` +
+              `Crypto Bot\nMarket Bot\nBusiness Insights\nCoding Bot\nChat Bot\n\n` +
+              `Just tell me what you need! `
       });
     }
-
-    // ========== EMAIL MANDATORY CHECK WHEN NEEDED ==========
-    // We won't block simple chat; but for actions that need email we will ask later.
-    // Create or fetch user record if email exists
     let user = null;
     if (userEmail) {
       user = await User.findOne({ email: userEmail });
@@ -49,9 +42,6 @@ module.exports = async (req, res) => {
         await user.save();
       }
     }
-
-    // ========== CHECK FOR ACTIVE CONVERSATION ==========
-    // Use userEmail to find conversation
     let conversation = null;
     if (userEmail) {
       conversation = await Conversation.findOne({
@@ -59,35 +49,24 @@ module.exports = async (req, res) => {
         status: 'active'
       });
     }
-
-    // If step-by-step conversation active, route to conversation engine
     if (conversation) {
-      // Ensure redis client is available for conversation engine if it needs it
       const redis = await createRedisClient();
       try {
         const response = await conversationEngine.process(conversation, userMessage, { user, redis });
         return res.json({ text: response });
       } catch (err) {
         console.error('Conversation engine error:', err);
-        // fallback to continue processing with Gemini
       }
     }
-
-    // ========== GEMINI INTENT DETECTION ==========
     const aiResponse = await detectIntent(userMessage, userEmail, user);
     return res.json({ text: aiResponse });
 
   } catch (error) {
-    console.error('❌ Webhook Error:', error);
+    console.error('Webhook Error:', error);
     return res.json({ text: 'An error occurred. Please try again.' });
   }
 };
 
-/**
- * GEMINI-POWERED INTENT DETECTION & EXECUTION
- *
- * Accepts userMessage, userEmail (may be null) and user object (may be null).
- */
 async function detectIntent(userMessage, userEmail, user) {
   const prompt = `You are an AI bot assistant that handles 12 different bot types.
 
@@ -118,7 +97,7 @@ Analyze the message and return ONLY valid JSON with this structure:
   "intent": "create|read|update|delete|delete_all|list_all|external_api|chat",
   "bot": "task|meeting|travel|reminder|interview|weather|news|crypto|market|business|coding|chat",
   "action": "create|read|update|delete|delete_all|list_all",
-  "data": { /* fields as required */ },
+  "data": {  },
   "sendEmail": true|false,
   "needsStepByStep": true|false
 }
@@ -127,13 +106,11 @@ Return strictly the JSON object only.`;
 
   try {
     const geminiRaw = await callGemini(prompt);
-    // callGemini may return an object; try to extract text
     let aiText = '';
     if (!geminiRaw) {
       console.warn('Gemini returned empty response');
       return "I couldn't understand that. Could you rephrase?";
     }
-    // Typical shapes: { text: '...', output: '...' } or full object
     if (typeof geminiRaw === 'string') aiText = geminiRaw;
     else if (geminiRaw.text) aiText = geminiRaw.text;
     else if (geminiRaw.output || geminiRaw.result || geminiRaw.data) aiText = JSON.stringify(geminiRaw);
@@ -153,16 +130,11 @@ Return strictly the JSON object only.`;
       return "I couldn't parse your request fully. Could you rephrase with more details?";
     }
 
-    console.log('🤖 Gemini Intent:', JSON.stringify(intent, null, 2));
-
-    // ========== HANDLE LIST ALL DATA ==========
+    console.log(' Gemini Intent:', JSON.stringify(intent, null, 2));
     if (intent.action === 'list_all' || intent.action === 'read') {
-      // If user didn't provide email and action needs identity, ask for email
       if (!userEmail) return 'I need your email to show your saved data. Please provide a valid email address.';
       return await handleListAll(userEmail);
     }
-
-    // ========== HANDLE DELETE OPERATIONS ==========
     if (intent.action === 'delete') {
       if (!userEmail) return 'I need your email to delete your items. Please provide a valid email address.';
       return await handleDelete(userEmail, intent);
@@ -172,10 +144,7 @@ Return strictly the JSON object only.`;
       if (!userEmail) return 'I need your email to delete your items. Please provide a valid email address.';
       return await handleDeleteAll(userEmail, intent.bot);
     }
-
-    // ========== HANDLE EXTERNAL API CALLS ==========
     if (intent.bot === 'weather') {
-      // weather read
       return await handleWeather(intent.data || {}, { email: userEmail }, intent.sendEmail);
     }
 
@@ -198,18 +167,12 @@ Return strictly the JSON object only.`;
     if (intent.bot === 'business') {
       return await handleBusinessInsights(userMessage, intent.data || {}, { email: userEmail }, intent.sendEmail);
     }
-
-    // ========== CHECK IF STEP-BY-STEP NEEDED ==========
     if (intent.needsStepByStep) {
-      // ensure email present when required by bot
       if (botDefinitions[intent.bot]?.requiresEmail && !userEmail) {
         return 'I need your email to continue. Please provide a valid email address.';
       }
       return await startStepByStepConversation({ email: userEmail }, intent.bot);
     }
-
-    // ========== SINGLE-PROMPT EXECUTION ==========
-    // If the bot requires email and none provided, ask for it before proceeding
     if (botDefinitions[intent.bot]?.requiresEmail && !userEmail) {
       return 'I need your email to proceed with this action. Please provide your email.';
     }
@@ -217,25 +180,20 @@ Return strictly the JSON object only.`;
     return await executeSinglePrompt({ email: userEmail }, intent);
 
   } catch (err) {
-    console.error('❌ Intent Detection Error:', err);
+    console.error('Intent Detection Error:', err);
     return 'Sorry, I had trouble processing that. Could you try again?';
   }
 }
 
-/**
- * LIST ALL USER DATA
- */
 async function handleListAll(email) {
-  // uses crudService.readRecords (mapped to get all by email)
   const allData = await crudService.readRecords({ botName: null, userEmail: email, filter: {}, limit: 500 })
     .catch(async () => {
-      // fallback if different API: try getAllByEmail
       if (typeof crudService.getAllByEmail === 'function') return crudService.getAllByEmail(email);
       return [];
     });
 
   if (!allData || allData.length === 0) {
-    return '📭 You don\'t have any saved data yet.'; 
+    return 'You don\'t have any saved data yet.'; 
   }
 
   const grouped = {};
@@ -245,7 +203,7 @@ async function handleListAll(email) {
     grouped[botType].push(item);
   });
 
-  let response = '📋 **YOUR SAVED DATA**\n\n';
+  let response = '**YOUR SAVED DATA**\n\n';
 
   for (const [botType, items] of Object.entries(grouped)) {
     const botName = botDefinitions[botType]?.name || botType;
@@ -266,14 +224,12 @@ async function handleListAll(email) {
     response += '\n';
   }
 
-  response += '\n💡 You can delete any item by saying "delete task 1" or "delete all tasks"';
+  response += '\nYou can delete any item by saying "delete task 1" or "delete all tasks"';
   return response;
 }
 
 async function handleDelete(email, intent) {
-  // intent.data may include targetId (ID) or index/last
   const target = intent.data?.targetId || intent.data?.id || intent.data?.target || 'last';
-  // If they gave index like 1, convert to the matching record id by reading list
   if (target === 'last' || parseInt(target)) {
     const list = await crudService.readRecords({ botName: intent.bot, userEmail: email, limit: 50 });
     if (!list || list.length === 0) return 'No matching items found to delete.';
@@ -285,49 +241,42 @@ async function handleDelete(email, intent) {
     }
     if (!toDelete) return 'Could not find the item you want to delete.';
     await crudService.deleteRecord({ id: toDelete._id });
-    return '✅ Item deleted successfully!';
+    return 'Item deleted successfully!';
   }
 
-  // If they provided an _id directly
   if (/^[0-9a-fA-F]{24}$/.test(String(target))) {
     await crudService.deleteRecord({ id: target });
-    return '✅ Item deleted successfully!';
+    return 'Item deleted successfully!';
   }
 
   return 'Could not understand which item to delete. Please specify item number or provide the item id.';
 }
 
-// ==============================
-// FIXED DELETE_ALL (No CastError)
-// ==============================
 async function handleDeleteAll(email, botType) {
 
-  // DELETE ALL RECORDS OF ALL BOTS
   if (!botType || botType === 'all') {
     await crudService.deleteAll({
-      filter: { email }   // ⭐ FIX: correct filter structure
+      filter: { email }  
     });
-    return '✅ All your data has been deleted.';
+    return 'All your data has been deleted.';
   }
-
-  // DELETE ALL RECORDS OF A SPECIFIC BOT
   await crudService.deleteAll({
-    filter: { email, botName: botType }   // ⭐ FIX: correct filter structure
+    filter: { email, botName: botType }   
   });
 
   const botName = botDefinitions[botType]?.name || botType;
-  return `✅ All ${botName} records have been deleted.`;
+  return `All ${botName} records have been deleted.`;
 }
 
 
 async function startStepByStepConversation(user, botType) {
   const botDef = botDefinitions[botType];
-  if (!botDef) return `❌ Bot type "${botType}" not found.`;
+  if (!botDef) return `Bot type "${botType}" not found.`;
 
   const conversation = new Conversation({
-    userId: user.email,    // ✅ FIX: Added userId
+    userId: user.email,   
     email: user.email,
-    botType: botType,      // ✅ FIX: Added botType
+    botType: botType,     
     status: 'active',
     currentStep: 0,
     collectedData: {}
@@ -335,11 +284,11 @@ async function startStepByStepConversation(user, botType) {
   
   await conversation.save();
   
-  return `✅ Starting ${botDef.name}!\n\n${botDef.fields[0].question}\n\n💡 Type "exit" to cancel, "back" to go back, or "skip" for optional fields.`;
+  return `Starting ${botDef.name}!\n\n${botDef.fields[0].question}\n\nType "exit" to cancel, "back" to go back, or "skip" for optional fields.`;
 }
 async function executeSinglePrompt(user, intent) {
   const botDef = botDefinitions[intent.bot];
-  if (!botDef) return `❌ Bot "${intent.bot}" not recognized.`;
+  if (!botDef) return `Bot "${intent.bot}" not recognized.`;
 
   const requiredMissing = [];
   if (botDef.fields && Array.isArray(botDef.fields)) {
@@ -351,22 +300,18 @@ async function executeSinglePrompt(user, intent) {
   }
 
   if (requiredMissing.length > 0) {
-    return `❌ Missing required information: ${requiredMissing.join(', ')}. Please provide all details or I'll ask step-by-step.`;
+    return `Missing required information: ${requiredMissing.join(', ')}. Please provide all details or I'll ask step-by-step.`;
   }
 
   try {
-    // Delegates to conversationEngine which should implement create/save logic,
-    // send emails as needed, and create Zoho meeting when required.
     if (typeof conversationEngine.executeDirect === 'function') {
       return await conversationEngine.executeDirect(user, intent.bot, intent.data, intent.sendEmail);
     }
-
-    // Fallback: basic create record
     const created = await crudService.createRecord({ botName: intent.bot, userEmail: user.email, data: intent.data });
-    return `✅ ${botDef.name} created successfully. ID: ${created._id}`;
+    return `${botDef.name} created successfully. ID: ${created._id}`;
   } catch (err) {
     console.error('Single prompt execution error:', err);
-    return '❌ Failed to create. Let me ask step-by-step instead.\n' + await startStepByStepConversation(user, intent.bot);
+    return 'Failed to create. Let me ask step-by-step instead.\n' + await startStepByStepConversation(user, intent.bot);
   }
 }
 
@@ -375,12 +320,11 @@ async function handleWeather(data, user, sendEmail) {
     const city = data.location || data.city || 'Mumbai';
     const weather = await getWeather(city);
     const cityName = weather.name || city;
-    let response = `🌤️ **Weather in ${cityName}**\n\n`;
-    response += `🌡️ Temperature: ${Math.round((weather.main.temp - 273.15) * 10) / 10}°C\n`;
-    response += `☁️ Condition: ${weather.weather?.[0]?.description || 'N/A'}\n`;
-    response += `💧 Humidity: ${weather.main?.humidity || 'N/A'}%\n`;
+    let response = `**Weather in ${cityName}**\n\n`;
+    response += `Temperature: ${Math.round((weather.main.temp - 273.15) * 10) / 10}°C\n`;
+    response += `Condition: ${weather.weather?.[0]?.description || 'N/A'}\n`;
+    response += `Humidity: ${weather.main?.humidity || 'N/A'}%\n`;
 
-    // If user explicitly asked to email it, send now
     if (sendEmail && user?.email) {
       try {
         await emailService.sendPlainText(
@@ -388,21 +332,21 @@ async function handleWeather(data, user, sendEmail) {
           `Weather Report - ${cityName}`,
           response
         );
-        response += `\n\n📧 Email sent to ${user.email}`;
+        response += `\n\nEmail sent to ${user.email}`;
       } catch (err) {
         console.error('Weather email error:', err);
-        response += `\n\n⚠️ Failed to send email.`;
+        response += `\n\nFailed to send email.`;
       }
     } else if (sendEmail) {
-      response += '\n\n📧 I need your email to send this. Please provide a valid email.';
+      response += '\n\nI need your email to send this. Please provide a valid email.';
     } else {
-      if (sendEmail) response += '\n\n📧 Would you like me to email this? (yes/no)';
+      if (sendEmail) response += '\n\nWould you like me to email this? (yes/no)';
     }
 
     return response;
   } catch (err) {
     console.error('Weather error', err);
-    return '❌ Could not fetch weather data. Please try again.';
+    return 'Could not fetch weather data. Please try again.';
   }
 }
 
@@ -410,7 +354,7 @@ async function handleNews(data, user, sendEmail) {
   try {
     const category = data.category || 'technology';
     const news = await getNews(category);
-    let response = `📰 **Top News - ${category}**\n\n`;
+    let response = `**Top News - ${category}**\n\n`;
     const articles = (news.articles || []).slice(0, 5);
     articles.forEach((article, idx) => {
       response += `${idx + 1}. ${article.title}\n   Source: ${article.source?.name || 'N/A'}\n   ${article.url}\n\n`;
@@ -423,35 +367,33 @@ async function handleNews(data, user, sendEmail) {
           `Top News - ${category}`,
           response
         );
-        response += `\n📧 Email sent to ${user.email}`;
+        response += `\nEmail sent to ${user.email}`;
       } catch (err) {
         console.error('News email error:', err);
-        response += `\n⚠️ Failed to send email.`;
+        response += `\n Failed to send email.`;
       }
     } else if (sendEmail) {
-      response += '\n\n📧 I need your email to send this. Please provide a valid email.';
+      response += '\n\nI need your email to send this. Please provide a valid email.';
     } else {
-      if (sendEmail) response += '📧 Would you like me to email this? (yes/no)';
+      if (sendEmail) response += ' Would you like me to email this? (yes/no)';
     }
 
     return response;
   } catch (err) {
     console.error('News error', err);
-    return '❌ Could not fetch news. Please try again.';
+    return 'Could not fetch news. Please try again.';
   }
 }
 
 async function handleMarket(data, user, sendEmail) {
   try {
-    // support both 'coin' and 'cryptocurrency'
     const coin = (data.coin || data.symbol || data.cryptocurrency || 'bitcoin').toString().toLowerCase();
     const market = await getMarketData(coin);
-    let response = `📈 **${coin.toUpperCase()} Market Data**\n\n`;
-    response += `💵 USD: $${market.usd ?? 'N/A'}\n`;
-    if (market.inr) response += `💵 INR: ₹${market.inr}\n`;
-    if (market.usd_24h_change) response += `📊 24h Change: ${market.usd_24h_change}%\n`;
+    let response = ` **${coin.toUpperCase()} Market Data**\n\n`;
+    response += ` USD: $${market.usd ?? 'N/A'}\n`;
+    if (market.inr) response += ` INR: ₹${market.inr}\n`;
+    if (market.usd_24h_change) response += ` 24h Change: ${market.usd_24h_change}%\n`;
 
-    // send email if requested
     if (sendEmail && user?.email) {
       try {
         await emailService.sendPlainText(
@@ -459,21 +401,21 @@ async function handleMarket(data, user, sendEmail) {
           `${coin.toUpperCase()} Market Data`,
           response
         );
-        response += `\n\n📧 Email sent to ${user.email}`;
+        response += `\n\n Email sent to ${user.email}`;
       } catch (err) {
         console.error('Market email error:', err);
-        response += `\n\n⚠️ Failed to send email.`;
+        response += `\n\n Failed to send email.`;
       }
     } else if (sendEmail) {
-      response += '\n\n📧 I need your email to send this. Please provide a valid email.';
+      response += '\n\n I need your email to send this. Please provide a valid email.';
     } else {
-      if (sendEmail) response += '\n\n📧 Email this report? (yes/no)';
+      if (sendEmail) response += '\n\n Email this report? (yes/no)';
     }
 
     return response;
   } catch (err) {
     console.error('Market error', err);
-    return '❌ Could not fetch market data. Please try again.';
+    return ' Could not fetch market data. Please try again.';
   }
 }
 
@@ -482,18 +424,18 @@ async function handleCoding(userMessage, data, user, sendEmail) {
   try {
     const answerObj = await callGemini(prompt);
     const answer = typeof answerObj === 'string' ? answerObj : (answerObj.text || JSON.stringify(answerObj));
-    let response = `💻 **Coding Assistant**\n\n${answer}\n`;
+    let response = ` **Coding Assistant**\n\n${answer}\n`;
 
     if (sendEmail && user?.email) {
       try {
         await emailService.sendPlainText(user.email, 'Coding Assistant Result', response);
-        response += `\n\n📧 Email sent to ${user.email}`;
+        response += `\n\n Email sent to ${user.email}`;
       } catch (err) {
         console.error('Coding email error:', err);
-        response += `\n\n⚠️ Failed to send email.`;
+        response += `\n\n Failed to send email.`;
       }
     } else if (sendEmail) {
-      response += '\n\n📧 I need your email to send this. Please provide a valid email.';
+      response += '\n\n I need your email to send this. Please provide a valid email.';
     }
 
     return response;
@@ -508,24 +450,24 @@ async function handleBusinessInsights(userMessage, data, user, sendEmail) {
   try {
     const answerObj = await callGemini(prompt);
     const answer = typeof answerObj === 'string' ? answerObj : (answerObj.text || JSON.stringify(answerObj));
-    let response = `💼 **Business Insights**\n\n${answer}`;
+    let response = `**Business Insights**\n\n${answer}`;
 
     if (sendEmail && user?.email) {
       try {
         await emailService.sendPlainText(user.email, 'Business Insights', response);
-        response += `\n\n📧 Email sent to ${user.email}`;
+        response += `\n\n Email sent to ${user.email}`;
       } catch (err) {
         console.error('Business email error:', err);
-        response += `\n\n⚠️ Failed to send email.`;
+        response += `\n\n Failed to send email.`;
       }
     } else if (sendEmail) {
-      response += '\n\n📧 I need your email to send this. Please provide a valid email.';
+      response += '\n\n I need your email to send this. Please provide a valid email.';
     }
 
     return response;
   } catch (err) {
     console.error('Business insights error', err);
-    return '❌ Could not generate insights. Please try again.';
+    return ' Could not generate insights. Please try again.';
   }
 }
 
@@ -534,7 +476,7 @@ async function handleChat(userMessage, user) {
   try {
     const responseObj = await callGemini(prompt);
     const text = typeof responseObj === 'string' ? responseObj : (responseObj.text || JSON.stringify(responseObj));
-    return `💬 ${text}`;
+    return ` ${text}`;
   } catch (err) {
     console.error('Chat error', err);
     return "Sorry, I couldn't process that. Try again?";
@@ -542,7 +484,6 @@ async function handleChat(userMessage, user) {
 }
 
 module.exports = {
-  // exported for tests / other modules if needed
   handleListAll,
   handleDelete,
   handleDeleteAll,

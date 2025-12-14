@@ -1,4 +1,3 @@
-// routes/webhook.js
 require('dotenv').config();
 const express = require('express');
 const Conversation = require('../models/Conversation');
@@ -19,7 +18,6 @@ const recordViewService = require('../services/recordViewService');
 const router = express.Router();
 const LOG = '[webhook]';
 
-/* ---------- helpers ---------- */
 
 async function ensureRedis() {
   try {
@@ -72,7 +70,6 @@ function wantsEmail(userMessage, explicitFlag) {
   return /\b(email|mail|send email|email it|mail it|send me)\b/.test(s);
 }
 
-/* ---------- bot detection (keyword bank + Gemini fallback) ---------- */
 const KEYBANK = {
   meeting: ['schedule meeting','meeting with','arrange meeting','book meeting','team sync','standup','zoom','google meet','zoho meeting'],
   task: ['create task','add task','todo','to-do','finish project','complete work','assign task'],
@@ -92,7 +89,6 @@ async function detectBot(userMessage) {
   const msg = (userMessage || '').toString().toLowerCase().trim();
   if (!msg) return 'chat';
 
-  // ---- RecordView commands ----
   if (
        /^\s*(show|list|view|fetch|retrieve)\b/.test(msg) ||
        msg.includes('show my') ||
@@ -103,14 +99,12 @@ async function detectBot(userMessage) {
     return 'recordview';
   }
 
-  // ---- Keyword based detection ----
   for (const [bot, keys] of Object.entries(KEYBANK)) {
     for (const w of keys) {
       if (msg.includes(w)) return bot;
     }
   }
 
-  // ---- LLM fallback ----
   try {
     const prompt = `
 Classify into a single bot name from:
@@ -131,9 +125,6 @@ User message: """${userMessage}"""
   return 'chat';
 }
 
-
-
-/* ---------- small formatter helpers ---------- */
 function formatRecords(items) {
   return (items || []).map(it => {
     const id = it._id || it.id || 'id?';
@@ -144,7 +135,6 @@ function formatRecords(items) {
   }).join('\n');
 }
 
-/* ---------- main webhook ---------- */
 router.post('/', async (req, res) => {
   try {
     const raw = req.body || {};
@@ -154,10 +144,9 @@ router.post('/', async (req, res) => {
     const sessionId = deriveSessionId(raw, req);
     const userEmail = incomingEmail || (raw.user && raw.user.email) || emailInText || null;
 
-    // slash helpers
     if (userMessage && userMessage.startsWith('/help')) {
       return res.json({
-        text: `🤖 SCOUTBUILD Help\n\n/ai <question> — Ask Gemini\n/help — this menu\n\nExamples:\n- "create a task finish report tomorrow at 5pm email it"\n- "schedule meeting tomorrow 3pm with a@b.com about review for 30 minutes"\n- "show all tasks"\n- "delete meeting id 64b..."\n- "delete all meetings confirm"`
+        text: `AI \n\n/ai <question> — Ask Gemini\n/help — this menu\n\nExamples:\n- "create a task finish report tomorrow at 5pm email it"\n- "schedule meeting tomorrow 3pm with a@b.com about review for 30 minutes"\n- "show all tasks"\n- "delete meeting id 64b..."\n- "delete all meetings confirm"`
       });
     }
     if (userMessage && userMessage.startsWith('/ai')) {
@@ -165,34 +154,31 @@ router.post('/', async (req, res) => {
       try {
         const r = await callGemini(q);
         const ans = typeof r === 'string' ? r : (r.text || JSON.stringify(r));
-        return res.json({ text: `🧠 Gemini response:\n\n${ans}` });
+        return res.json({ text: ` Gemini response:\n\n${ans}` });
       } catch (err) {
-        return res.json({ text: '❌ Gemini error' });
+        return res.json({ text: 'Gemini error' });
       }
     }
 
     console.log(`${LOG} Incoming:`, userMessage, `(session:${sessionId} email:${userEmail || 'none'})`);
     if (!userMessage) return res.json({ text: 'Please send a message.' });
 
-    // quick greeting
     const lc = userMessage.trim().toLowerCase();
     if (['hi','hello','hey','hola'].includes(lc)) {
       return res.json({ text: `${getGreeting()}\n\nI can help with tasks, meetings, travel, reminders, and more.` });
     }
 
-    // fetch/create user model if email present
     let user = null;
     if (userEmail) {
       user = await User.findOne({ email: userEmail.toLowerCase() }).catch(()=>null);
       if (!user) {
-        try { user = new User({ email: userEmail.toLowerCase() }); await user.save(); } catch(e) { /* ignore */ }
+        try { user = new User({ email: userEmail.toLowerCase() }); await user.save(); } catch(e) {  }
       }
     } else if (raw.user && (raw.user.username || raw.user.id)) {
       const key = raw.user.email || raw.user.username || raw.user.id;
       if (key) user = await User.findOne({ $or: [{ username: key }, { externalId: key }, { email: key }] }).catch(()=>null);
     }
 
-    // resume active conversation if exists
     const redis = await ensureRedis();
     let activeConversation = null;
     try {
@@ -205,42 +191,38 @@ router.post('/', async (req, res) => {
         return res.json({ text: reply });
       } catch (err) {
         console.warn(`${LOG} conversation engine error:`, err?.message || err);
-        // fall through
       }
     }
 
-    // detect bot
     const botType = await detectBot(userMessage);
     console.log(`${LOG} Detected bot:`, botType);
 
-    // Record view handled in service
     if (botType === 'recordview') {
       try {
         const rv = await recordViewService.handleRecordView(raw, userMessage, sessionId, userEmail);
         return res.json({ text: rv });
       } catch (err) {
         console.error(`${LOG} recordViewService error:`, err?.message || err);
-        return res.json({ text: '❌ Failed to process record command.' });
+        return res.json({ text: ' Failed to process record command.' });
       }
     }
 
-    // External helpers: weather / news / market / crypto / coding / business
     if (botType === 'weather') {
       const loc = (raw.location || raw.city || (userMessage.match(/in\s+([A-Za-z\s]+)/i) && userMessage.match(/in\s+([A-Za-z\s]+)/i)[1]) || 'Mumbai').trim();
       try {
         const w = await getWeather(loc);
-        let out = `🌤️ Weather for ${w.city || loc}\n\nTemperature: ${w.temp}°C\nCondition: ${w.condition}\nHumidity: ${w.humidity}%`;
+        let out = `Weather for ${w.city || loc}\n\nTemperature: ${w.temp}°C\nCondition: ${w.condition}\nHumidity: ${w.humidity}%`;
         if (wantsEmail(userMessage, raw.sendEmail)) {
-          if (!userEmail) out += '\n\n📧 I need your email to send this. Please provide your email.';
+          if (!userEmail) out += '\n\n I need your email to send this. Please provide your email.';
           else {
             await emailService.sendPlainText(userEmail, `Weather for ${loc}`, out);
-            out += `\n\n📧 Email sent to ${userEmail}`;
+            out += `\n\nEmail sent to ${userEmail}`;
           }
         }
         return res.json({ text: out });
       } catch (err) {
         console.error(`${LOG} Weather error`, err);
-        return res.json({ text: '❌ Could not fetch weather right now.' });
+        return res.json({ text: ' Could not fetch weather right now.' });
       }
     }
 
@@ -248,22 +230,22 @@ router.post('/', async (req, res) => {
       const topic = raw.topic || (userMessage.match(/news about ([\w\s]+)/i) && userMessage.match(/news about ([\w\s]+)/i)[1]) || 'technology';
       try {
         const items = await getNews(topic);
-        let out = `📰 Top News - ${topic}\n\n`;
+        let out = `Top News - ${topic}\n\n`;
         (items || []).slice(0,5).forEach((i, idx) => {
           out += `${idx+1}. ${i.title || i}\n`;
           if (i.url) out += `${i.url}\n`;
         });
         if (wantsEmail(userMessage, raw.sendEmail)) {
-          if (!userEmail) out += '\n\n📧 I need your email to send this.';
+          if (!userEmail) out += '\n\nI need your email to send this.';
           else {
             await emailService.sendPlainText(userEmail, `Top News - ${topic}`, out);
-            out += `\n\n📧 Email sent to ${userEmail}`;
+            out += `\n\nEmail sent to ${userEmail}`;
           }
         }
         return res.json({ text: out });
       } catch (err) {
         console.error(`${LOG} News error`, err);
-        return res.json({ text: '❌ Could not fetch news.' });
+        return res.json({ text: 'Could not fetch news.' });
       }
     }
 
@@ -273,20 +255,20 @@ router.post('/', async (req, res) => {
         const coinMatch = userMessage.match(/\b(bitcoin|btc|ethereum|eth|dogecoin|doge|litecoin|ltc|nifty|sensex|aapl|googl|msft|tsla)\b/i);
         if (coinMatch) coin = coinMatch[1].toLowerCase();
         const mdata = await getMarketData(coin);
-        let out = `📈 ${coin.toUpperCase()} Market Data\n\nUSD: $${mdata.usd ?? 'N/A'}`;
+        let out = `${coin.toUpperCase()} Market Data\n\nUSD: $${mdata.usd ?? 'N/A'}`;
         if (mdata.inr) out += `\nINR: ₹${mdata.inr}`;
         if (mdata.usd_24h_change) out += `\n24h: ${mdata.usd_24h_change}%`;
         if (wantsEmail(userMessage, raw.sendEmail)) {
-          if (!userEmail) out += `\n\n📧 I need your email to send this.`;
+          if (!userEmail) out += `\n\nI need your email to send this.`;
           else {
             await emailService.sendPlainText(userEmail, `${coin.toUpperCase()} Market Data`, out);
-            out += `\n\n📧 Email sent to ${userEmail}`;
+            out += `\n\n Email sent to ${userEmail}`;
           }
         }
         return res.json({ text: out });
       } catch (err) {
         console.error(`${LOG} Market/crypto error`, err);
-        return res.json({ text: '❌ Could not fetch market data.' });
+        return res.json({ text: ' Could not fetch market data.' });
       }
     }
 
@@ -295,18 +277,18 @@ router.post('/', async (req, res) => {
         const prompt = `You are a coding assistant. Answer user concisely:\n\n${userMessage}`;
         const r = await callGemini(prompt);
         const txt = typeof r === 'string' ? r : (r.text || JSON.stringify(r));
-        let out = `💻 Coding Answer\n\n${txt}`;
+        let out = ` Coding Answer\n\n${txt}`;
         if (wantsEmail(userMessage, raw.sendEmail)) {
-          if (!userEmail) out += '\n\n📧 I need your email to send this.';
+          if (!userEmail) out += '\n\n I need your email to send this.';
           else {
             await emailService.sendPlainText(userEmail, 'Coding Answer', out);
-            out += `\n\n📧 Email sent to ${userEmail}`;
+            out += `\n\n Email sent to ${userEmail}`;
           }
         }
         return res.json({ text: out });
       } catch (err) {
         console.error(`${LOG} Coding error`, err);
-        return res.json({ text: '❌ Could not generate code.' });
+        return res.json({ text: ' Could not generate code.' });
       }
     }
 
@@ -315,26 +297,24 @@ router.post('/', async (req, res) => {
         const prompt = `Business analyst: ${userMessage}`;
         const r = await callGemini(prompt);
         const txt = typeof r === 'string' ? r : (r.text || JSON.stringify(r));
-        let out = `💼 Business Insights\n\n${txt}`;
+        let out = `Business Insights\n\n${txt}`;
         if (wantsEmail(userMessage, raw.sendEmail)) {
-          if (!userEmail) out += '\n\n📧 I need your email to send this.';
+          if (!userEmail) out += '\n\n I need your email to send this.';
           else {
             await emailService.sendPlainText(userEmail, 'Business Insights', out);
-            out += `\n\n📧 Email sent to ${userEmail}`;
+            out += `\n\n Email sent to ${userEmail}`;
           }
         }
         return res.json({ text: out });
       } catch (err) {
         console.error(`${LOG} Business error`, err);
-        return res.json({ text: '❌ Could not generate business insights.' });
+        return res.json({ text: ' Could not generate business insights.' });
       }
     }
 
-    /* ---------- CRUD-style bots ---------- */
     const botDef = botDefinitions[botType] || botDefinitions['task'];
     const fields = (botDef && botDef.fields) ? botDef.fields : [];
 
-    // Build extraction prompt for LLM
     let extractPrompt = `Extract fields for bot "${botType}" from the user message.\nReturn only a JSON object with "data":{...} and "sendEmail":true/false.\nFields:\n`;
     for (const f of fields) extractPrompt += `- ${f.name} (${f.type || 'text'})\n`;
     extractPrompt += `\nUser message: """${userMessage}"""\nReturn JSON only. Example:\n{"data":{"title":"...","date":"2025-10-10","time":"10:00","attendees":"a@b.com,b@c.com"},"sendEmail":true}\n`;
@@ -352,7 +332,6 @@ router.post('/', async (req, res) => {
     let extractedData = (extraction && extraction.data) ? extraction.data : {};
     const sendEmailFlag = (extraction && typeof extraction.sendEmail === 'boolean') ? extraction.sendEmail : wantsEmail(userMessage, raw.sendEmail);
 
-    // Title heuristics
     if (!extractedData.title && /titled\s+["']?([^,"']{3,200})/i.test(userMessage)) {
       extractedData.title = userMessage.match(/titled\s+["']?([^,"']{3,200})/i)[1].trim();
     } else if (!extractedData.title && /called\s+["']?([^,"']{3,200})/i.test(userMessage)) {
@@ -364,7 +343,7 @@ router.post('/', async (req, res) => {
       if (t) extractedData.title = t[1].split(/\sat\b|\btomorrow\b|\bfor\b/)[0].trim();
     }
 
-    // email heuristics for attendees/teammates
+  
     if (botType === 'task') {
       const emailsFound = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || [];
       if (emailsFound.length) extractedData.emails = Array.from(new Set(emailsFound.map(e => e.toLowerCase())));
@@ -378,23 +357,21 @@ router.post('/', async (req, res) => {
       if (dur) extractedData.duration = parseInt(dur[1],10);
     }
 
-    // ---------- DATE/TIME: robust parse & store as date (YYYY-MM-DD) + time (HH:MM)
+    
     try {
       const pd = await conversationEngine.parseNaturalDateTime(userMessage);
       if (pd instanceof Date && !isNaN(pd.getTime())) {
-        // Important: store date and time separately (no timezone conversion to UTC)
+        
         const y = pd.getFullYear();
         const m = String(pd.getMonth() + 1).padStart(2, '0');
         const d = String(pd.getDate()).padStart(2, '0');
         const hh = String(pd.getHours()).padStart(2, '0');
         const mm = String(pd.getMinutes()).padStart(2, '0');
-        extractedData.date = `${y}-${m}-${d}`;      // user-local date
-        extractedData.time = `${hh}:${mm}`;         // user-local time (HH:MM)
+        extractedData.date = `${y}-${m}-${d}`;      
+        extractedData.time = `${hh}:${mm}`;        
       } else {
-        // fallback heuristics (e.g., "tomorrow", or time-only)
         const timeOnly = userMessage.match(/\b(\d{1,2}(?::\d{2})?\s*(am|pm)?)\b/i);
         if (timeOnly && !extractedData.time) {
-          // don't assign date if user didn't mention day; conversationEngine will prompt if required
           const tStr = timeOnly[1];
           const tParsed = await conversationEngine.parseNaturalDateTime(tStr);
           if (tParsed instanceof Date && !isNaN(tParsed.getTime())) {
@@ -406,21 +383,16 @@ router.post('/', async (req, res) => {
       console.warn(`${LOG} date parsing fallback:`, err?.message || err);
     }
 
-    // Map task date->dueDate (backwards compatibility)
     if (botType === 'task' && extractedData.date && !extractedData.dueDate) {
-      // if time present -> store in ISO-like but WITHOUT Z to avoid timezone shift when user views
       if (extractedData.time) {
-        extractedData.dueDate = `${extractedData.date}T${extractedData.time}:00`; // intentionally no Z
-        // keep date/time fields for UI clarity
+        extractedData.dueDate = `${extractedData.date}T${extractedData.time}:00`; 
       } else {
         extractedData.dueDate = `${extractedData.date}`;
       }
     }
 
-    // ensure owner email is resolved (explicit owner, or first attendee)
     const ownerEmail = userEmail || (extractedData.email || (extractedData.attendees && extractedData.attendees.split && extractedData.attendees.split(',')[0])) || null;
 
-    // If bot requires email and none present -> start conversation flow to collect it
     const hasAttendees = !!(extractedData.attendees && extractedData.attendees.length);
     const hasTeammates = !!(extractedData.emails && extractedData.emails.length);
     const hasAnyEmail = Boolean(userEmail || extractedData.email || hasAttendees || hasTeammates);
@@ -437,7 +409,6 @@ router.post('/', async (req, res) => {
       return res.json({ text: 'I need your email to complete this action. Please provide your email.' });
     }
 
-    // If required fields missing -> start conversation step-by-step
     const payloadForCreate = { ...extractedData };
     const requiredMissing = [];
     for (const f of fields || []) {
@@ -462,18 +433,13 @@ router.post('/', async (req, res) => {
       return res.json({ text: `I need a few more details to create the ${botDef?.name || botType}:\n\nMissing: ${requiredMissing.join(', ')}\n\n${question}\n\n(Reply with the answer. Type "step-by-step" to answer all fields one by one.)` });
     }
 
-    // ---------- CREATE via conversationEngine.executeDirect (single-shot)
     try {
       const userObjForExec = user || { email: ownerEmail };
       const result = await conversationEngine.executeDirect(userObjForExec, botType, payloadForCreate, sendEmailFlag);
       const textResp = (typeof result === 'string') ? result : (result && (result.text || JSON.stringify(result))) || 'Done';
 
-      // Double-safeguard: If botDef.autoEmail is true (owner wants auto emails for this bot type),
-      // ensure owner receives confirmation even if executeDirect didn't for some reason.
-      // This is idempotent because emailWorker/emailQueue should handle duplicate safe sending.
       try {
         if ((botDef && botDef.autoEmail) && ownerEmail) {
-          // call sendConfirmation but don't await to avoid blocking response (we'll await here briefly then respond)
           await emailService.sendConfirmation(ownerEmail, botType, payloadForCreate).catch(e => {
             console.warn(`${LOG} fallback sendConfirmation owner failed:`, e?.message || e);
           });
@@ -482,13 +448,11 @@ router.post('/', async (req, res) => {
         console.warn(`${LOG} fallback owner email error:`, e?.message || e);
       }
 
-      // Also email attendees/interviewers if present and not already handled
       try {
         if (payloadForCreate.attendees && (botType === 'meeting' || botType === 'interview')) {
           const attendees = Array.isArray(payloadForCreate.attendees) ? payloadForCreate.attendees : String(payloadForCreate.attendees).split(',').map(x=>x.trim()).filter(Boolean);
           for (const em of attendees) {
             if (em) {
-              // queue each attendee confirmation, best-effort
               await emailService.sendConfirmation(em, botType, payloadForCreate).catch(err => {
                 console.warn(`${LOG} attendee email fail:`, em, err?.message || err);
               });
@@ -510,12 +474,12 @@ router.post('/', async (req, res) => {
       return res.json({ text: textResp });
     } catch (err) {
       console.error(`${LOG} Create/direct execution error:`, err?.stack || err);
-      return res.json({ text: '❌ Internal error while creating record.' });
+      return res.json({ text: 'Internal error while creating record.' });
     }
 
   } catch (err) {
     console.error(`${LOG} top-level error:`, err?.stack || err);
-    return res.json({ text: '⚠️ Internal error.' });
+    return res.json({ text: 'Internal error.' });
   }
 });
 

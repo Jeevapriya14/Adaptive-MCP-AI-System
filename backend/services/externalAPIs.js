@@ -1,8 +1,6 @@
 const axios = require('axios');
 
-/* ============================================================
-   WEATHER API (OpenWeather) - Fully working
-   ============================================================ */
+
 async function getWeather(city) {
   try {
     const cleanCity = city.replace(/tomorrow|today|email|it/gi, '').trim();
@@ -28,9 +26,7 @@ async function getWeather(city) {
 }
 
 
-/* ============================================================
-   NEWS API (GNEWS.IO) — FIXED & WORKING
-   ============================================================ */
+
 async function getNews(category = "technology") {
   try {
     const url = `https://gnews.io/api/v4/top-headlines`;
@@ -61,14 +57,10 @@ async function getNews(category = "technology") {
 }
 
 
-/* ============================================================
-   CRYPTO / MARKET DATA (CoinGecko + Index Handling)
-   ============================================================ */
+
 async function getMarketData(symbol = "bitcoin") {
   try {
     const coin = symbol.toLowerCase();
-
-    // If user tries "NIFTY" / "SENSEX" -> CoinGecko FAILS
     const forbidden = ["nifty", "sensex", "nifty 50", "nifty50", "aapl", "tsla"];
 
     if (forbidden.includes(coin)) {

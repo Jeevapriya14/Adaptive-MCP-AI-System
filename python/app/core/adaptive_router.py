@@ -8,7 +8,6 @@ class AdaptiveRouter:
     def __init__(self, db):
         self.db = db
 
-        # Only Gemini is active (TF & Torch removed)
         self.model_load_counter = {
             "gemini": 0
         }
@@ -19,14 +18,11 @@ class AdaptiveRouter:
         Gemini is used for all tasks for now.
         """
 
-        # Everything routes to Gemini (Text, Q&A, NLP, general)
         selected = "gemini"
 
-        # Load balancing logic (simple)
         if self.model_load_counter[selected] > 20:
             selected = min(self.model_load_counter, key=self.model_load_counter.get)
 
-        # Track load
         self.model_load_counter[selected] += 1
 
         print(f"[ROUTER] Instruction → {instruction}")

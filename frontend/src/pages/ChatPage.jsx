@@ -2,12 +2,11 @@ import { useState } from "react";
 import ChatBox from "../components/ChatBox";
 import EmailPrompt from "../components/EmailPrompt";
 import { getUserEmail } from "../utils/session";
-import { toggleTheme } from "../hooks/useTheme"; // ✅ IMPORT
+import { toggleTheme } from "../hooks/useTheme";
 import "../styles/chat.css";
 
 export default function ChatPage() {
   const [emailReady, setEmailReady] = useState(!!getUserEmail());
-
   if (!emailReady) {
     return (
       <div className="app center">
@@ -15,23 +14,21 @@ export default function ChatPage() {
       </div>
     );
   }
-
   return (
-    <div className="app">
+    <div className="app chat-layout">
       <header className="header">
-        <span>🤖 ScoutBuild AI Assistant</span>
-
-        {/* ✅ THEME TOGGLE BUTTON */}
+        <span>MCP AI Assistant</span>
         <button
           onClick={toggleTheme}
           className="theme-btn"
           title="Toggle theme"
         >
-          🌓
-        </button>
+                  </button>
       </header>
 
-      <ChatBox />
+      <div className="chat-wrapper">
+        <ChatBox />
+      </div>
     </div>
   );
 }

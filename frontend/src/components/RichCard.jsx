@@ -4,7 +4,7 @@ export default function RichCard({ meta }) {
   if (meta.type === "meeting") {
     return (
       <div className="card">
-        <h4>📅 Meeting Scheduled</h4>
+        <h4> Meeting Scheduled</h4>
         <p><b>{meta.title}</b></p>
         <p>{meta.date} @ {meta.time}</p>
         {meta.joinUrl && (
@@ -19,7 +19,7 @@ export default function RichCard({ meta }) {
   if (meta.type === "task") {
     return (
       <div className="card">
-        <h4>📝 Task Created</h4>
+        <h4> Task Created</h4>
         <p><b>{meta.title}</b></p>
         <p>Due: {meta.dueDate}</p>
       </div>
