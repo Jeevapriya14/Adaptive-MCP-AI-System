@@ -1,10 +1,10 @@
 # Adaptive MCP-AI System
 
-A full-stack AI system that intelligently routes requests to different AI models (Gemini, TensorFlow, PyTorch) based on instruction analysis and load balancing.
+A full-stack AI system that intelligently routes requests to different AI models based on instruction analysis and load balancing.
 
 ## Features
 
--  Multi-model AI routing (Gemini, TensorFlow, PyTorch)
+-  Multi-model AI routing (Gemini)
 -  WebSocket streaming support
 -  Session context management with MongoDB
 -  Real-time dashboard and analytics
@@ -148,8 +148,7 @@ Load balancing ensures no single model is overloaded.
 - FastAPI
 - Motor (async MongoDB)
 - Google Generative AI (Gemini)
-- TensorFlow
-- PyTorch
+- NodeJS
 - WebSockets
 
 **Frontend:**
