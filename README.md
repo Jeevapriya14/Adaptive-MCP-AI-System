@@ -9,7 +9,6 @@ A full-stack AI system that intelligently routes requests to different AI models
 -  Session context management with MongoDB
 -  Real-time dashboard and analytics
 -  Secure API key management via .env
--  FastAPI backend with async support
 -  React + Vite frontend with TailwindCSS
 
 ## Project Structure
@@ -65,8 +64,6 @@ MONGODB_URI=mongodb://localhost:27017
 
 6. Run the backend:
 ```bash
-cd python
-python main.py
 
 cd backend
 npm start
