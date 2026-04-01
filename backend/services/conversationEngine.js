@@ -1,7 +1,5 @@
 
 'use strict';
-
-const { callGemini } = require('../config/gemini');
 const botDefinitions = require('./botDefinitions');
 const crudService = require('./crudService');
 const calendarService = require('./calendarService');
@@ -36,6 +34,65 @@ function getNextMissingStepIndex(botDef, collectedData = {}, startIndex = 0) {
     if (empty) return index;
   }
   return fields.length;
+}
+
+function isDateLikeField(field = {}) {
+  const name = String(field.name || '').toLowerCase();
+  return field.type === 'date' ||
+    field.type === 'datetime' ||
+    name === 'date' ||
+    name.endsWith('date') ||
+    name.endsWith('at');
+}
+
+function isTimeLikeField(field = {}) {
+  const name = String(field.name || '').toLowerCase();
+  return field.type === 'time' || name === 'time' || name.endsWith('time');
+}
+
+function isDateLikeKey(key) {
+  const name = String(key || '').toLowerCase();
+  return name === 'date' || name.endsWith('date') || name.endsWith('at');
+}
+
+function isTimeLikeKey(key) {
+  const name = String(key || '').toLowerCase();
+  return name === 'time' || name.endsWith('time');
+}
+
+function extractTimeFromISO(isoString) {
+  try {
+    const d = new Date(isoString);
+    if (!isNaN(d.getTime())) {
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function normalizeBotAliases(botType, data = {}) {
+  if (!data || typeof data !== 'object') return data;
+
+  if (botType === 'task') {
+    if (!data.dueDate && data.date) {
+      if (typeof data.date === 'string' && data.time && !data.date.includes('T')) {
+        data.dueDate = `${data.date}T${data.time}:00`;
+      } else {
+        data.dueDate = data.date;
+      }
+    }
+    if (data.dueDate && !data.time && typeof data.dueDate === 'string' && data.dueDate.includes('T')) {
+      const derivedTime = extractTimeFromISO(data.dueDate);
+      if (derivedTime) data.time = derivedTime;
+    }
+  }
+
+  if ((botType === 'meeting' || botType === 'reminder' || botType === 'interview') && !data.date) {
+    if (data.startDate) data.date = data.startDate;
+    else if (data.dueDate) data.date = data.dueDate;
+  }
+
+  return data;
 }
 
 
@@ -155,27 +212,6 @@ async function parseNaturalDateTime(text) {
     }
   }
 
-  if (isNaN(date.getTime()) && typeof callGemini === 'function') {
-    try {
-      const prompt = `
-Convert the following natural language date/time into an ISO 8601 timestamp (UTC): "${raw}".
-Return only JSON: {"iso":"<ISO>","valid":true} or {"iso":null,"valid":false}
-`;
-      const ai = await callGemini(prompt);
-      const txt = typeof ai === 'string' ? ai : (ai.text || JSON.stringify(ai));
-      const m = txt.match(/\{[\s\S]*\}/);
-      if (m) {
-        const parsed = JSON.parse(m[0]);
-        if (parsed && parsed.valid && parsed.iso) {
-          const d = new Date(parsed.iso);
-          if (!isNaN(d.getTime())) return d;
-        }
-      }
-    } catch (e) {
-     
-    }
-  }
-
   if (isNaN(date.getTime())) return null;
   return date;
 }
@@ -203,13 +239,13 @@ async function validateField(field, rawValue) {
     return { valid: false, error: 'Answer must be yes or no.' };
   }
 
-  if (field.type === 'time' || (field.name || '').toLowerCase().includes('time')) {
+  if (isTimeLikeField(field)) {
     const t = parseTimeShort(valueRaw);
     if (!t) return { valid: false, error: "Could not parse time. Try '10:00' or '7pm'." };
     return { valid: true, value: t };
   }
 
-  if (field.type === 'date' || field.type === 'datetime' || (field.name || '').toLowerCase().includes('date')) {
+  if (isDateLikeField(field)) {
     
     const dt = await (async () => {
       try {
@@ -470,17 +506,18 @@ async function executeDirect(userOrObj, botType, data, sendEmail = false) {
   const userEmail = (userOrObj && userOrObj.email) || (typeof userOrObj === 'string' ? userOrObj : null);
   const taskRecipients = botType === 'task' ? getTaskRecipients(data) : [];
 
+  normalizeBotAliases(botType, data);
+
  
   try {
     for (const key of Object.keys(data || {})) {
-      const lower = key.toLowerCase();
-      if (lower.includes('date') || lower.includes('day')) {
+      if (isDateLikeKey(key)) {
         if (typeof data[key] === 'string' && !data[key].includes('T')) {
           const d = await parseNaturalDateTime(String(data[key]));
           if (d) data[key] = d.toISOString();
         }
       }
-      if (lower.includes('time') && typeof data[key] === 'string') {
+      if (isTimeLikeKey(key) && typeof data[key] === 'string') {
         const t = parseTimeShort(String(data[key]));
         if (t) data[key] = t;
       }
@@ -489,24 +526,10 @@ async function executeDirect(userOrObj, botType, data, sendEmail = false) {
     console.warn(LOG_PREFIX, 'normalization error:', e?.message || e);
   }
 
-  function extractTimeFromISO(isoString) {
-    try {
-      const d = new Date(isoString);
-      if (!isNaN(d.getTime())) {
-        return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      }
-    } catch (e) {}
-    return null;
-  }
-  function cleanDateOnly(isoString) {
-    try { return isoString.split('T')[0]; } catch(e){ return isoString; }
-  }
-
   const dateKeys = ['date','startDate','dueDate','departureDate'];
   for (const key of dateKeys) {
     if (data[key] && typeof data[key] === 'string' && data[key].includes('T')) {
       if (!data.time) data.time = extractTimeFromISO(data[key]);
-      data.date = cleanDateOnly(data[key]);
     }
   }
 

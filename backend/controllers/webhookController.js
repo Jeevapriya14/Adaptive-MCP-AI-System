@@ -290,6 +290,12 @@ async function executeSinglePrompt(user, intent) {
   const botDef = botDefinitions[intent.bot];
   if (!botDef) return `Bot "${intent.bot}" not recognized.`;
 
+  if (intent.bot === 'task' && intent.data && !intent.data.dueDate && intent.data.date) {
+    intent.data.dueDate = intent.data.time
+      ? `${intent.data.date}T${intent.data.time}:00`
+      : intent.data.date;
+  }
+
   const requiredMissing = [];
   if (botDef.fields && Array.isArray(botDef.fields)) {
     for (const field of botDef.fields) {

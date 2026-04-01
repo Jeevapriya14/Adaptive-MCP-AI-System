@@ -69,7 +69,10 @@ async function sendPlainText(email, subject, text) {
 
 async function scheduleReminder(email, recordId, botType, data) {
   try {
-    const rawDate = data.date || data.dueDate || data.startDate || data.departureDate;
+    let rawDate = data.dueDate || data.startDate || data.departureDate || data.date;
+    if (!rawDate && data.date && data.time) {
+      rawDate = `${data.date}T${data.time}:00`;
+    }
     if (!rawDate) return console.log("⚠️ No reminder date found.");
 
     const eventDate = new Date(rawDate);

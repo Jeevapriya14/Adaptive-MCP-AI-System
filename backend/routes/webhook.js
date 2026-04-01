@@ -17,6 +17,7 @@ const recordViewService = require('../services/recordViewService');
 
 const router = express.Router();
 const LOG = '[webhook]';
+const LOCAL_EXTRACTION_BOTS = new Set(['task', 'meeting', 'reminder', 'interview']);
 
 
 async function ensureRedis() {
@@ -106,6 +107,25 @@ function extractTaskTitle(text) {
   return null;
 }
 
+function extractTaskDuePhrase(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\bdue\s+(.+?)(?=\s+(?:with priority|priority|email it|send email|mail it|assign(?:ed)? to)\b|$)/i,
+    /\bby\s+(.+?)(?=\s+(?:with priority|priority|email it|send email|mail it|assign(?:ed)? to)\b|$)/i,
+    /\bdue\s+((?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+\d{1,2}(?:,\s*|\s+)\d{4}(?:\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?)/i,
+    /\bdue\s+(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}(?:\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?)/i,
+    /\bdue\s+(today|tomorrow(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?)/i,
+    /\bdue\s+(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match) return match[1].trim();
+  }
+
+  return null;
+}
+
 function extractMeetingTitle(text) {
   const raw = String(text || '').replace(/\s+/g, ' ').trim();
   const aboutMatch = raw.match(/\babout\s+(.+?)(?=\s+for\s+\d+\s*(?:minutes|minute|min|mins)\b|$)/i);
@@ -128,6 +148,36 @@ function extractReminderTitle(text) {
   return null;
 }
 
+function extractInterviewData(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const emailMatch = raw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/i);
+  const candidateEmail = emailMatch ? emailMatch[0].toLowerCase() : null;
+
+  let candidateName = null;
+  const withMatch = raw.match(/\binterview(?:\s+with)?\s+([A-Za-z][A-Za-z\s]{1,60}?)(?=\s+[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}\b|\s+for\b|\s+(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december|today|tomorrow|next)\b|$)/i);
+  if (withMatch) candidateName = withMatch[1].trim();
+
+  let position = null;
+  const positionMatch = raw.match(/\bfor\s+(.+?)(?=\s+position\b|\s+(?:today|tomorrow|next|on|at)\b|$)/i);
+  if (positionMatch) {
+    position = positionMatch[1].trim();
+  } else if (candidateEmail) {
+    const afterEmail = raw.split(candidateEmail)[1] || '';
+    const trailingRole = afterEmail.match(/^\s+(.+?)(?=\s+(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december|today|tomorrow|next|on|at|mode)\b|$)/i);
+    if (trailingRole) position = trailingRole[1].replace(/\s+position$/i, '').trim();
+  }
+
+  const modeMatch = raw.match(/\bmode\s+(online|offline)\b/i) || raw.match(/\b(online|offline)\b/i);
+  const mode = modeMatch ? modeMatch[1].toLowerCase() : null;
+
+  return {
+    candidateName,
+    candidateEmail,
+    position,
+    mode
+  };
+}
+
 function extractQuotedOrEmailStrippedDatePhrase(text) {
   const raw = String(text || '').replace(/\s+/g, ' ').trim();
   const patterns = [
@@ -147,6 +197,112 @@ function extractQuotedOrEmailStrippedDatePhrase(text) {
   return null;
 }
 
+function parseTimeParts(text) {
+  const source = String(text || '').toLowerCase();
+  const match =
+    source.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/) ||
+    source.match(/\b(\d{1,2})(?::(\d{2}))\s*(am|pm)\b/) ||
+    source.match(/\b(\d{1,2})\s*(am|pm)\b/) ||
+    source.match(/\bat\s+(\d{1,2}):(\d{2})\b/) ||
+    source.match(/\b(\d{1,2}):(\d{2})\b/);
+
+  if (!match) return { hour: 9, minute: 0 };
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  const meridian = match[3] ? match[3].toLowerCase() : null;
+  if (meridian === 'pm' && hour < 12) hour += 12;
+  if (meridian === 'am' && hour === 12) hour = 0;
+  return { hour, minute };
+}
+
+function parseDatePhraseLocally(text) {
+  if (!text) return null;
+
+  const raw = String(text).trim();
+  const source = raw.toLowerCase();
+  const nativeDate = new Date(raw);
+  if (!Number.isNaN(nativeDate.getTime())) {
+    return nativeDate;
+  }
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth();
+  let day = now.getDate();
+  let explicitYear = false;
+
+  const iso = source.match(/\b(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})\b/);
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]) - 1;
+    day = Number(iso[3]);
+    explicitYear = true;
+  }
+
+  const dmy = source.match(/\b(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})\b/);
+  if (dmy) {
+    day = Number(dmy[1]);
+    month = Number(dmy[2]) - 1;
+    year = Number(dmy[3]);
+    explicitYear = true;
+  }
+
+  const monthName = source.match(/\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(\d{1,2})(?:,\s*|\s+)(\d{4})\b/);
+  if (monthName) {
+    const monthMap = {
+      jan: 0, january: 0,
+      feb: 1, february: 1,
+      mar: 2, march: 2,
+      apr: 3, april: 3,
+      may: 4,
+      jun: 5, june: 5,
+      jul: 6, july: 6,
+      aug: 7, august: 7,
+      sep: 8, sept: 8, september: 8,
+      oct: 9, october: 9,
+      nov: 10, november: 10,
+      dec: 11, december: 11
+    };
+    month = monthMap[monthName[1]];
+    day = Number(monthName[2]);
+    year = Number(monthName[3]);
+    explicitYear = true;
+  }
+
+  if (source.includes('today')) {
+    year = now.getFullYear();
+    month = now.getMonth();
+    day = now.getDate();
+  } else if (source.includes('tomorrow')) {
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    year = tomorrow.getFullYear();
+    month = tomorrow.getMonth();
+    day = tomorrow.getDate();
+  } else {
+    const weekdayMap = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+    for (const [name, index] of Object.entries(weekdayMap)) {
+      if (source.includes(`next ${name}`) || new RegExp(`\\b${name}\\b`).test(source)) {
+        const diff = (index + 7 - now.getDay()) % 7 || 7;
+        const weekday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+        year = weekday.getFullYear();
+        month = weekday.getMonth();
+        day = weekday.getDate();
+        break;
+      }
+    }
+  }
+
+  const { hour, minute } = parseTimeParts(source);
+  const result = new Date(year, month, day, hour, minute, 0, 0);
+  if (Number.isNaN(result.getTime())) return null;
+
+  if (!explicitYear && result < now) {
+    result.setFullYear(result.getFullYear() + 1);
+  }
+
+  return result;
+}
+
 async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
   const nextData = { ...(extractedData || {}) };
   const emails = normalizeEmailList(userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || []);
@@ -155,9 +311,11 @@ async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
     if (!nextData.title) nextData.title = extractTaskTitle(userMessage);
     if (!nextData.priority) nextData.priority = findPriority(userMessage);
     if (!nextData.assignees && emails.length) nextData.assignees = emails;
-    const duePhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
+    const duePhrase = extractTaskDuePhrase(userMessage) || extractQuotedOrEmailStrippedDatePhrase(userMessage);
     if (duePhrase && !nextData.dueDate) {
-      const parsed = await conversationEngine.parseNaturalDateTime(duePhrase);
+      const parsed = parseDatePhraseLocally(duePhrase) ||
+        (!Number.isNaN(new Date(duePhrase).getTime()) ? new Date(duePhrase) : null) ||
+        await conversationEngine.parseNaturalDateTime(duePhrase);
       if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.dueDate = parsed.toISOString();
     }
   }
@@ -171,7 +329,9 @@ async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
     }
     const whenPhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
     if (whenPhrase && !nextData.date) {
-      const parsed = await conversationEngine.parseNaturalDateTime(whenPhrase);
+      const parsed = parseDatePhraseLocally(whenPhrase) ||
+        (!Number.isNaN(new Date(whenPhrase).getTime()) ? new Date(whenPhrase) : null) ||
+        await conversationEngine.parseNaturalDateTime(whenPhrase);
       if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.date = parsed.toISOString();
     }
   }
@@ -180,7 +340,25 @@ async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
     if (!nextData.title) nextData.title = extractReminderTitle(userMessage);
     const whenPhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
     if (whenPhrase && !nextData.date) {
-      const parsed = await conversationEngine.parseNaturalDateTime(whenPhrase);
+      const parsed = parseDatePhraseLocally(whenPhrase) ||
+        (!Number.isNaN(new Date(whenPhrase).getTime()) ? new Date(whenPhrase) : null) ||
+        await conversationEngine.parseNaturalDateTime(whenPhrase);
+      if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.date = parsed.toISOString();
+    }
+  }
+
+  if (botType === 'interview') {
+    const interviewData = extractInterviewData(userMessage);
+    if (!nextData.candidateName && interviewData.candidateName) nextData.candidateName = interviewData.candidateName;
+    if (!nextData.candidateEmail && interviewData.candidateEmail) nextData.candidateEmail = interviewData.candidateEmail;
+    if (!nextData.position && interviewData.position) nextData.position = interviewData.position;
+    if (!nextData.mode && interviewData.mode) nextData.mode = interviewData.mode;
+
+    const whenPhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
+    if (whenPhrase && !nextData.date) {
+      const parsed = parseDatePhraseLocally(whenPhrase) ||
+        (!Number.isNaN(new Date(whenPhrase).getTime()) ? new Date(whenPhrase) : null) ||
+        await conversationEngine.parseNaturalDateTime(whenPhrase);
       if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.date = parsed.toISOString();
     }
   }
@@ -465,13 +643,15 @@ router.post('/', async (req, res) => {
     extractPrompt += `\nUser message: """${userMessage}"""\nReturn JSON only. Example:\n{"data":{"title":"...","date":"2025-10-10","time":"10:00","attendees":"a@b.com,b@c.com"},"sendEmail":true}\n`;
 
     let extraction = null;
-    try {
-      const ai = await callGemini(extractPrompt);
-      const txt = typeof ai === 'string' ? ai : (ai && (ai.text || JSON.stringify(ai)));
-      const m = txt.match(/\{[\s\S]*\}/);
-      if (m) extraction = JSON.parse(m[0]);
-    } catch (err) {
-      console.warn(`${LOG} Extraction via Gemini failed:`, err?.message || err);
+    if (!LOCAL_EXTRACTION_BOTS.has(botType)) {
+      try {
+        const ai = await callGemini(extractPrompt);
+        const txt = typeof ai === 'string' ? ai : (ai && (ai.text || JSON.stringify(ai)));
+        const m = txt.match(/\{[\s\S]*\}/);
+        if (m) extraction = JSON.parse(m[0]);
+      } catch (err) {
+        console.warn(`${LOG} Extraction via Gemini failed:`, err?.message || err);
+      }
     }
 
     let extractedData = (extraction && extraction.data) ? extraction.data : {};
@@ -510,7 +690,9 @@ router.post('/', async (req, res) => {
     
     try {
       const dateSource = extractQuotedOrEmailStrippedDatePhrase(userMessage) || userMessage;
-      const pd = await conversationEngine.parseNaturalDateTime(dateSource);
+      const pd = parseDatePhraseLocally(dateSource) ||
+        (!Number.isNaN(new Date(dateSource).getTime()) ? new Date(dateSource) : null) ||
+        await conversationEngine.parseNaturalDateTime(dateSource);
       if (pd instanceof Date && !isNaN(pd.getTime())) {
         
         const y = pd.getFullYear();
@@ -524,7 +706,9 @@ router.post('/', async (req, res) => {
         const timeOnly = userMessage.match(/\b(\d{1,2}(?::\d{2})?\s*(am|pm)?)\b/i);
         if (timeOnly && !extractedData.time) {
           const tStr = timeOnly[1];
-          const tParsed = await conversationEngine.parseNaturalDateTime(tStr);
+          const tParsed = parseDatePhraseLocally(tStr) ||
+            (!Number.isNaN(new Date(tStr).getTime()) ? new Date(tStr) : null) ||
+            await conversationEngine.parseNaturalDateTime(tStr);
           if (tParsed instanceof Date && !isNaN(tParsed.getTime())) {
             extractedData.time = `${String(tParsed.getHours()).padStart(2,'0')}:${String(tParsed.getMinutes()).padStart(2,'0')}`;
           }
@@ -539,6 +723,17 @@ router.post('/', async (req, res) => {
         extractedData.dueDate = `${extractedData.date}T${extractedData.time}:00`; 
       } else {
         extractedData.dueDate = `${extractedData.date}`;
+      }
+    }
+
+    if (botType === 'task' && !extractedData.dueDate) {
+      const fallbackDuePhrase = extractTaskDuePhrase(userMessage) || extractQuotedOrEmailStrippedDatePhrase(userMessage);
+      const fallbackDueDate = parseDatePhraseLocally(fallbackDuePhrase || userMessage) ||
+        (!Number.isNaN(new Date(fallbackDuePhrase || userMessage).getTime()) ? new Date(fallbackDuePhrase || userMessage) : null) ||
+        await conversationEngine.parseNaturalDateTime(fallbackDuePhrase || userMessage);
+
+      if (fallbackDueDate instanceof Date && !isNaN(fallbackDueDate.getTime())) {
+        extractedData.dueDate = fallbackDueDate.toISOString();
       }
     }
 
@@ -561,6 +756,11 @@ router.post('/', async (req, res) => {
     }
 
     const payloadForCreate = { ...extractedData };
+    if (botType === 'task' && !payloadForCreate.dueDate && payloadForCreate.date) {
+      payloadForCreate.dueDate = payloadForCreate.time
+        ? `${payloadForCreate.date}T${payloadForCreate.time}:00`
+        : payloadForCreate.date;
+    }
     const requiredMissing = [];
     for (const f of fields || []) {
       if (f.required) {
