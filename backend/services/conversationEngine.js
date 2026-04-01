@@ -305,6 +305,7 @@ async function completeBot(conversation, userObj = {}) {
   
   let resp = `${ (botDef.name || botType).toUpperCase() } CREATED!\n\n`;
   resp += generateSummary(data);
+  resp += `\n🆔 Meeting ID: ${saved._id}`;
 
   
   if (botType === 'meeting') {
@@ -451,6 +452,7 @@ async function executeDirect(userOrObj, botType, data, sendEmail = false) {
 
   let resp = ` ${ (botDef.name || botType).toUpperCase() } CREATED!\n\n`;
   resp += generateSummary(data);
+  resp += `\nMeeting ID: ${saved._id}`;
 
   if (botType === 'meeting') {
     try {

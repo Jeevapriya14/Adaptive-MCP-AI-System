@@ -38,7 +38,7 @@ reminderQueue.process(async (job) => {
       <body>
         <div class="container">
           <div class="header">
-            <h1 style="margin: 0;">⏰ Reminder: Tomorrow!</h1>
+            <h1 style="margin: 0;"> Reminder: Tomorrow!</h1>
           </div>
           <div class="content">
             <div class="alert">
@@ -58,27 +58,27 @@ reminderQueue.process(async (job) => {
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: email,
-      subject: `⏰ Reminder: ${botType.toUpperCase()} Tomorrow!`,
+      subject: ` Reminder: ${botType.toUpperCase()} Tomorrow!`,
       html
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Reminder sent to ${email} for ${botType}`);
+    console.log(` Reminder sent to ${email} for ${botType}`);
     
     return { success: true };
 
   } catch (error) {
-    console.error('❌ Reminder Send Error:', error.message);
+    console.error(' Reminder Send Error:', error.message);
     throw error;
   }
 });
 
 reminderQueue.on('completed', (job) => {
-  console.log(`✅ Reminder Job ${job.id} completed`);
+  console.log(` Reminder Job ${job.id} completed`);
 });
 
 reminderQueue.on('failed', (job, err) => {
-  console.error(`❌ Reminder Job ${job.id} failed:`, err.message);
+  console.error(` Reminder Job ${job.id} failed:`, err.message);
 });
 
-console.log('⏰ Reminder worker started and listening...');
+console.log(' Reminder worker started and listening...');

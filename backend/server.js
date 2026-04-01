@@ -15,13 +15,13 @@ app.use(express.text({ type: 'text/plain' }));
 console.log('MONGODB_URI from env =>', process.env.MONGODB_URI);
 
 if (!process.env.MONGODB_URI) {
-  console.error('❌ Missing MONGODB_URI environment variable');
+  console.error(' Missing MONGODB_URI environment variable');
   process.exit(1);
 }
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
+  .then(() => console.log(' MongoDB Connected'))
   .catch(err => {
-    console.error('❌ MongoDB Error:', err);
+    console.error(' MongoDB Error:', err);
     process.exit(1);
   });
 const redisClient = require('./config/redis.js');
@@ -40,7 +40,7 @@ app.get('/health', (req, res) => {
   });
 });
 app.use((err, req, res, next) => {
-  console.error('❌ Unhandled Error:', err);
+  console.error(' Unhandled Error:', err);
   res.status(500).json({
     text: 'Internal server error. Please try again.'
   });
@@ -53,7 +53,7 @@ process.on('SIGTERM', async () => {
 });
 
 process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Promise Rejection:', err);
+  console.error(' Unhandled Promise Rejection:', err);
 });
 app.listen(PORT, () => {
   console.log('\n' + '='.repeat(70));
@@ -63,11 +63,11 @@ app.listen(PORT, () => {
   console.log(` Webhook: POST /webhook`);
   console.log(` AI Engine: Google Gemini Pro`);
   console.log(` Database: MongoDB Atlas`);
-  console.log(`⚡ Cache: Redis Cloud`);
+  console.log(` Cache: Redis Cloud`);
   console.log(` Email: Gmail SMTP`);
   console.log(` Zoho Meetings: Enabled`);
   console.log('='.repeat(70));
-  console.log('\n✅ 12 BOTS ACTIVE:');
+  console.log('\n 12 BOTS ACTIVE:');
   console.log('   1. Task Manager         7. News Bot');
   console.log('   2. Meeting Scheduler    8. Crypto Bot');
   console.log('   3. Travel Planner       9. Market Bot');

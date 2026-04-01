@@ -4,14 +4,14 @@ const client = createClient({
   socket: {
     host: process.env.REDIS_HOST,  
     port: process.env.REDIS_PORT,  
-    tls: false
+    tls: {}
   },
   username: process.env.REDIS_USERNAME,
   password: process.env.REDIS_PASSWORD, 
 });
 
 client.on("connect", () => console.log("Redis Connecting..."));
-client.on("ready", () => console.log("Redis Connected (Non-TLS)"));
+client.on("ready", () => console.log("Redis Connected..."));
 client.on("error", (err) => console.error("Redis Error:", err.message));
 
 client.connect().catch(err => console.error("Redis Connect Error:", err));
