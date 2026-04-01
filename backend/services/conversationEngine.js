@@ -193,8 +193,10 @@ async function parseNaturalDateTime(text) {
 
   if (explicitTime) {
     let hour = Number(explicitTime[1]);
-    const minute = Number(explicitTime[2] || 0);
-    const meridian = explicitTime[3] ? explicitTime[3].toLowerCase() : null;
+    const minute = /^\d{1,2}$/.test(String(explicitTime[2] || '')) ? Number(explicitTime[2]) : 0;
+    const meridian = explicitTime[3]
+      ? explicitTime[3].toLowerCase()
+      : (/^(am|pm)$/i.test(String(explicitTime[2] || '')) ? String(explicitTime[2]).toLowerCase() : null);
     if (meridian === 'pm' && hour < 12) hour += 12;
     if (meridian === 'am' && hour === 12) hour = 0;
     date.setHours(hour, minute, 0, 0);

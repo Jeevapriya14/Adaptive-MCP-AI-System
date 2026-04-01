@@ -209,8 +209,8 @@ function parseTimeParts(text) {
   if (!match) return { hour: 9, minute: 0 };
 
   let hour = Number(match[1]);
-  const minute = Number(match[2] || 0);
-  const meridian = match[3] ? match[3].toLowerCase() : null;
+  const minute = /^\d{1,2}$/.test(String(match[2] || '')) ? Number(match[2]) : 0;
+  const meridian = (match[3] || (/^(am|pm)$/i.test(String(match[2] || '')) ? match[2] : null));
   if (meridian === 'pm' && hour < 12) hour += 12;
   if (meridian === 'am' && hour === 12) hour = 0;
   return { hour, minute };
