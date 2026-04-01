@@ -70,6 +70,101 @@ function wantsEmail(userMessage, explicitFlag) {
   return /\b(email|mail|send email|email it|mail it|send me)\b/.test(s);
 }
 
+function normalizeEmailList(value) {
+  if (!value) return [];
+  const items = Array.isArray(value) ? value : String(value).split(',');
+  return Array.from(new Set(
+    items
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item))
+  ));
+}
+
+function looksLikeFreshCommand(userMessage) {
+  const msg = String(userMessage || '').trim().toLowerCase();
+  return /^(create|add|schedule|set|show|list|view|delete|update|book|plan)\b/.test(msg) ||
+    /\b(task|meeting|reminder|interview|travel|weather|news|crypto|market)\b/.test(msg);
+}
+
+function findPriority(text) {
+  const match = String(text || '').match(/\b(low|medium|high)\b/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+function extractTaskTitle(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\btask called\s+(.+?)(?=\s+(?:due|by|on|tomorrow|today|next|with priority|priority)\b|$)/i,
+    /\badd task\s+(.+?)(?=\s+(?:due|by|on|tomorrow|today|next|with priority|priority)\b|$)/i,
+    /\bcreate(?:\s+a)?(?:\s+\w+)?\s+task(?:\s+called)?\s+(.+?)(?=\s+(?:due|by|on|tomorrow|today|next|with priority|priority)\b|$)/i,
+    /\btask\s+(.+?)(?=\s+(?:due|by|on|tomorrow|today|next|with priority|priority)\b|$)/i
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match) return match[1].trim();
+  }
+  return null;
+}
+
+function extractMeetingTitle(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const aboutMatch = raw.match(/\babout\s+(.+?)(?=\s+for\s+\d+\s*(?:minutes|minute|min|mins)\b|$)/i);
+  if (aboutMatch) return aboutMatch[1].trim();
+  const titleMatch = raw.match(/\bmeeting(?:\s+about|\s+called)?\s+(.+?)(?=\s+(?:tomorrow|today|next|on|at|with|for)\b|$)/i);
+  return titleMatch ? titleMatch[1].trim() : null;
+}
+
+function extractQuotedOrEmailStrippedDatePhrase(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\bdue\s+(.+?)(?=\s+(?:with priority|priority|email it|send email|mail it|assign(?:ed)? to|for [^0-9]|$))/i,
+    /\bon\s+(.+?)(?=\s+(?:with priority|priority|email it|send email|mail it|assign(?:ed)? to|with [^\d]|about|for [^0-9]|$))/i,
+    /\b(?:today|tomorrow)\b(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i,
+    /\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i,
+    /\b(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+\d{1,2}(?:,\s*|\s+)\d{4}(?:\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i,
+    /\b\d{4}-\d{1,2}-\d{1,2}(?:\s+\d{1,2}:\d{2}(?:\s*(?:am|pm))?)?/i,
+    /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{4}(?:\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match) return match[0].replace(/^(due|on)\s+/i, '').trim();
+  }
+  return null;
+}
+
+async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
+  const nextData = { ...(extractedData || {}) };
+  const emails = normalizeEmailList(userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || []);
+
+  if (botType === 'task') {
+    if (!nextData.title) nextData.title = extractTaskTitle(userMessage);
+    if (!nextData.priority) nextData.priority = findPriority(userMessage);
+    if (!nextData.assignees && emails.length) nextData.assignees = emails;
+    const duePhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
+    if (duePhrase && !nextData.dueDate) {
+      const parsed = await conversationEngine.parseNaturalDateTime(duePhrase);
+      if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.dueDate = parsed.toISOString();
+    }
+  }
+
+  if (botType === 'meeting') {
+    if (!nextData.title) nextData.title = extractMeetingTitle(userMessage) || 'Meeting';
+    if (!nextData.attendees && emails.length) nextData.attendees = emails.join(',');
+    if (!nextData.duration) {
+      const durationMatch = userMessage.match(/for\s+(\d{1,4})\s*(minutes|minute|min|mins)\b/i);
+      if (durationMatch) nextData.duration = parseInt(durationMatch[1], 10);
+    }
+    const whenPhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
+    if (whenPhrase && !nextData.date) {
+      const parsed = await conversationEngine.parseNaturalDateTime(whenPhrase);
+      if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.date = parsed.toISOString();
+    }
+  }
+
+  return nextData;
+}
+
 const KEYBANK = {
   meeting: ['schedule meeting','meeting with','arrange meeting','book meeting','team sync','standup','zoom','google meet','zoho meeting'],
   task: ['create task','add task','todo','to-do','finish project','complete work','assign task'],
@@ -104,6 +199,12 @@ async function detectBot(userMessage) {
       if (msg.includes(w)) return bot;
     }
   }
+
+  if (/\btask\b/.test(msg)) return 'task';
+  if (/\bmeeting\b/.test(msg)) return 'meeting';
+  if (/\bremind(?: me)?\b|\breminder\b/.test(msg)) return 'reminder';
+  if (/\binterview\b/.test(msg)) return 'interview';
+  if (/\btravel\b|\btrip\b|\bflight\b/.test(msg)) return 'travel';
 
   try {
     const prompt = `
@@ -184,6 +285,18 @@ router.post('/', async (req, res) => {
     try {
       activeConversation = await Conversation.findOne({ userId: sessionId, status: 'active' }).catch(()=>null);
     } catch (e) { activeConversation = null; }
+
+    if (activeConversation) {
+      try {
+        if (looksLikeFreshCommand(userMessage) && /\b(create|add|schedule|set|show|list|view|delete|update|book|plan)\b/i.test(userMessage)) {
+          activeConversation.status = 'cancelled';
+          await activeConversation.save().catch(()=>{});
+          activeConversation = null;
+        }
+      } catch (err) {
+        console.warn(`${LOG} active conversation reset failed:`, err?.message || err);
+      }
+    }
 
     if (activeConversation) {
       try {
@@ -332,6 +445,8 @@ router.post('/', async (req, res) => {
     let extractedData = (extraction && extraction.data) ? extraction.data : {};
     const sendEmailFlag = (extraction && typeof extraction.sendEmail === 'boolean') ? extraction.sendEmail : wantsEmail(userMessage, raw.sendEmail);
 
+    extractedData = await applyRuleBasedExtraction(botType, userMessage, extractedData);
+
     if (!extractedData.title && /titled\s+["']?([^,"']{3,200})/i.test(userMessage)) {
       extractedData.title = userMessage.match(/titled\s+["']?([^,"']{3,200})/i)[1].trim();
     } else if (!extractedData.title && /called\s+["']?([^,"']{3,200})/i.test(userMessage)) {
@@ -345,11 +460,14 @@ router.post('/', async (req, res) => {
 
   
     if (botType === 'task') {
-      const emailsFound = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || [];
-      if (emailsFound.length) extractedData.emails = Array.from(new Set(emailsFound.map(e => e.toLowerCase())));
+      const emailsFound = normalizeEmailList(userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || []);
+      if (emailsFound.length) {
+        extractedData.assignees = extractedData.assignees || emailsFound;
+        extractedData.emails = emailsFound;
+      }
     }
     if ((botType === 'meeting' || botType === 'interview') && !extractedData.attendees) {
-      const emails = Array.from(new Set([...(userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || [])]));
+      const emails = normalizeEmailList(userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g) || []);
       if (emails.length) extractedData.attendees = emails.join(',');
     }
     if (!extractedData.duration) {
@@ -359,7 +477,8 @@ router.post('/', async (req, res) => {
 
     
     try {
-      const pd = await conversationEngine.parseNaturalDateTime(userMessage);
+      const dateSource = extractQuotedOrEmailStrippedDatePhrase(userMessage) || userMessage;
+      const pd = await conversationEngine.parseNaturalDateTime(dateSource);
       if (pd instanceof Date && !isNaN(pd.getTime())) {
         
         const y = pd.getFullYear();
@@ -421,12 +540,13 @@ router.post('/', async (req, res) => {
       const firstMissing = requiredMissing[0];
       const meta = (fields || []).find(x => x.name === firstMissing);
       const question = meta ? meta.question : `Please provide ${firstMissing}`;
+      const currentStep = Math.max(0, (fields || []).findIndex(x => x.name === firstMissing));
       const conv = new Conversation({
         userId: sessionId,
         email: userEmail || null,
         botType,
         status: 'active',
-        currentStep: 0,
+        currentStep,
         collectedData: payloadForCreate
       });
       await conv.save();
@@ -437,39 +557,6 @@ router.post('/', async (req, res) => {
       const userObjForExec = user || { email: ownerEmail };
       const result = await conversationEngine.executeDirect(userObjForExec, botType, payloadForCreate, sendEmailFlag);
       const textResp = (typeof result === 'string') ? result : (result && (result.text || JSON.stringify(result))) || 'Done';
-
-      try {
-        if ((botDef && botDef.autoEmail) && ownerEmail) {
-          await emailService.sendConfirmation(ownerEmail, botType, payloadForCreate).catch(e => {
-            console.warn(`${LOG} fallback sendConfirmation owner failed:`, e?.message || e);
-          });
-        }
-      } catch (e) {
-        console.warn(`${LOG} fallback owner email error:`, e?.message || e);
-      }
-
-      try {
-        if (payloadForCreate.attendees && (botType === 'meeting' || botType === 'interview')) {
-          const attendees = Array.isArray(payloadForCreate.attendees) ? payloadForCreate.attendees : String(payloadForCreate.attendees).split(',').map(x=>x.trim()).filter(Boolean);
-          for (const em of attendees) {
-            if (em) {
-              await emailService.sendConfirmation(em, botType, payloadForCreate).catch(err => {
-                console.warn(`${LOG} attendee email fail:`, em, err?.message || err);
-              });
-            }
-          }
-        }
-        if (payloadForCreate.interviewers && botType === 'interview') {
-          const ints = Array.isArray(payloadForCreate.interviewers) ? payloadForCreate.interviewers : String(payloadForCreate.interviewers).split(',').map(x=>x.trim()).filter(Boolean);
-          for (const em of ints) {
-            await emailService.sendConfirmation(em, botType, payloadForCreate).catch(err => {
-              console.warn(`${LOG} interviewer email fail:`, em, err?.message || err);
-            });
-          }
-        }
-      } catch (e) {
-        console.warn(`${LOG} attendees fallback email error:`, e?.message || e);
-      }
 
       return res.json({ text: textResp });
     } catch (err) {

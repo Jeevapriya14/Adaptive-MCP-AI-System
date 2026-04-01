@@ -6,6 +6,7 @@ module.exports = {
     fields: [
       { name: 'title', type: 'text', question: ' What is the task title?', required: true },
       { name: 'description', type: 'text', question: ' Task description?', required: false },
+      { name: 'assignees', type: 'text', question: ' Assignee emails (comma-separated)?', required: false },
       { name: 'priority', type: 'text', question: 'Priority (low/medium/high)?', required: true },
       { name: 'dueDate', type: 'datetime', question: 'Due date and time?', required: true }
     ]

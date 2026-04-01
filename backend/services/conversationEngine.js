@@ -12,6 +12,32 @@ const util = require('util');
 
 const LOG_PREFIX = '[conversationEngine]';
 
+function getUniqueEmails(...groups) {
+  return Array.from(
+    new Set(
+      groups
+        .flat()
+        .filter(Boolean)
+        .map((email) => String(email).trim().toLowerCase())
+    )
+  );
+}
+
+function getTaskRecipients(data = {}) {
+  return getUniqueEmails(emailService.getTaskRecipientEmails(data));
+}
+
+function getNextMissingStepIndex(botDef, collectedData = {}, startIndex = 0) {
+  const fields = botDef?.fields || [];
+  for (let index = Math.max(0, startIndex); index < fields.length; index++) {
+    const field = fields[index];
+    const value = collectedData[field.name];
+    const empty = value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+    if (empty) return index;
+  }
+  return fields.length;
+}
+
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -188,6 +214,7 @@ async function process(conversation, userMessage, context = {}) {
 
   conversation.collectedData ||= {};
   const lc = (userMessage || '').toString().trim().toLowerCase();
+  conversation.currentStep = getNextMissingStepIndex(botDef, conversation.collectedData, conversation.currentStep || 0);
 
   if (['exit','cancel','quit','stop'].includes(lc)) {
     conversation.status = 'cancelled';
@@ -270,6 +297,7 @@ async function completeBot(conversation, userObj = {}) {
 
   const data = conversation.collectedData || {};
   const userEmail = (userObj && userObj.email) || conversation.email || null;
+  const taskRecipients = botType === 'task' ? getTaskRecipients(data) : [];
 
   const missing = [];
   for (const f of botDef.fields || []) {
@@ -352,6 +380,18 @@ async function completeBot(conversation, userObj = {}) {
   }
 
   try {
+    if (botType === 'task' && taskRecipients.length) {
+      for (const em of taskRecipients) {
+        if (em === String(userEmail || '').trim().toLowerCase()) continue;
+        try {
+          await emailService.sendConfirmation(em, botType, data);
+        } catch (e) {
+          console.warn(LOG_PREFIX, 'sendConfirmation task recipient failed:', em, e?.message || e);
+        }
+      }
+      resp += `\n Task assignee emails queued/sent.`;
+    }
+
     if (data.attendees && (botType === 'meeting' || botType === 'interview')) {
       const attendees = Array.isArray(data.attendees) ? data.attendees : data.attendees.split(',').map(x => x.trim()).filter(Boolean);
       for (const em of attendees) {
@@ -378,9 +418,15 @@ async function completeBot(conversation, userObj = {}) {
   try {
     const dateField = data.date || data.dueDate || data.startDate || data.departureDate || null;
     if (dateField && botDef.autoEmail) {
-      await emailService.scheduleReminder(userEmail, saved._id, botType, data).catch(e => {
-        console.warn(LOG_PREFIX, 'scheduleReminder failed:', e?.message || e);
-      });
+      const reminderRecipients = botType === 'task'
+        ? getUniqueEmails(userEmail, taskRecipients)
+        : getUniqueEmails(userEmail);
+
+      for (const recipientEmail of reminderRecipients) {
+        await emailService.scheduleReminder(recipientEmail, saved._id, botType, data).catch(e => {
+          console.warn(LOG_PREFIX, 'scheduleReminder failed:', recipientEmail, e?.message || e);
+        });
+      }
       resp += `\nReminder scheduled.`;
     }
   } catch (e) {
@@ -396,6 +442,7 @@ async function executeDirect(userOrObj, botType, data, sendEmail = false) {
   if (!botDef) throw new Error('Unknown botType: ' + botType);
 
   const userEmail = (userOrObj && userOrObj.email) || (typeof userOrObj === 'string' ? userOrObj : null);
+  const taskRecipients = botType === 'task' ? getTaskRecipients(data) : [];
 
  
   try {
@@ -493,6 +540,14 @@ async function executeDirect(userOrObj, botType, data, sendEmail = false) {
 
   
   try {
+    if (botType === 'task' && taskRecipients.length) {
+      for (const em of taskRecipients) {
+        if (em === String(userEmail || '').trim().toLowerCase()) continue;
+        try { await emailService.sendConfirmation(em, botType, data); } catch(e){ console.warn(LOG_PREFIX,'task recipient email fail:', em, e?.message || e); }
+      }
+      resp += `\nTask assignee emails queued/sent.`;
+    }
+
     if (data.attendees && (botType === 'meeting' || botType === 'interview')) {
       const attendees = Array.isArray(data.attendees) ? data.attendees : String(data.attendees).split(',').map(x=>x.trim()).filter(Boolean);
       for (const em of attendees) {
@@ -512,7 +567,15 @@ async function executeDirect(userOrObj, botType, data, sendEmail = false) {
   try {
     const dateField = data.date || data.dueDate || data.startDate || data.departureDate;
     if (dateField && botDef.autoEmail) {
-      await emailService.scheduleReminder(userEmail, saved._id, botType, data).catch(e => { console.warn(LOG_PREFIX,'scheduleReminder failed:', e?.message || e); });
+      const reminderRecipients = botType === 'task'
+        ? getUniqueEmails(userEmail, taskRecipients)
+        : getUniqueEmails(userEmail);
+
+      for (const recipientEmail of reminderRecipients) {
+        await emailService.scheduleReminder(recipientEmail, saved._id, botType, data).catch(e => {
+          console.warn(LOG_PREFIX,'scheduleReminder failed:', recipientEmail, e?.message || e);
+        });
+      }
       resp += `\nReminder scheduled.`;
     }
   } catch (e) { console.warn(LOG_PREFIX,'reminder schedule error:', e); }
@@ -526,7 +589,8 @@ function generateSummary(data) {
   for (const [k,v] of Object.entries(data || {})) {
     if (v === undefined || v === null || v === '') continue;
     const key = k.charAt(0).toUpperCase() + k.slice(1);
-    out += ` ${ key }: ${ v }\n`;
+    const value = Array.isArray(v) ? v.join(', ') : v;
+    out += ` ${ key }: ${ value }\n`;
   }
   return out;
 }

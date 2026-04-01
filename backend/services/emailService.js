@@ -12,6 +12,21 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+function normalizeEmailList(value) {
+  if (!value) return [];
+
+  const items = Array.isArray(value) ? value : String(value).split(',');
+  return Array.from(new Set(
+    items
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item))
+  ));
+}
+
+function getTaskRecipientEmails(data) {
+  return normalizeEmailList(data?.assignees || data?.emails);
+}
+
 
 
 async function sendConfirmation(email, botType, data) {
@@ -87,7 +102,8 @@ function generateHTML(botType, data) {
   let rows = "";
 
   for (const [key, value] of Object.entries(data)) {
-    if (value === undefined || value === null || String(value).trim() === "") continue;
+    const displayValue = Array.isArray(value) ? value.join(', ') : value;
+    if (displayValue === undefined || displayValue === null || String(displayValue).trim() === "") continue;
 
     rows += `
       <tr>
@@ -95,7 +111,7 @@ function generateHTML(botType, data) {
           ${formatLabel(key)}
         </td>
         <td style="padding: 10px 12px; border-bottom:1px solid #eee;">
-          ${value}
+          ${displayValue}
         </td>
       </tr>
     `;
@@ -169,6 +185,8 @@ function formatLabel(str) {
 module.exports = {
   sendConfirmation,
   sendPlainText,
-  scheduleReminder
+  scheduleReminder,
+  normalizeEmailList,
+  getTaskRecipientEmails
 };
 
