@@ -17,7 +17,7 @@ const recordViewService = require('../services/recordViewService');
 
 const router = express.Router();
 const LOG = '[webhook]';
-const LOCAL_EXTRACTION_BOTS = new Set(['task', 'meeting', 'reminder', 'interview']);
+const LOCAL_EXTRACTION_BOTS = new Set(['task', 'meeting', 'reminder', 'interview', 'travel']);
 
 
 async function ensureRedis() {
@@ -197,6 +197,28 @@ function extractQuotedOrEmailStrippedDatePhrase(text) {
   return null;
 }
 
+function extractTravelData(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const out = {};
+
+  const routeMatch = raw.match(/\bfrom\s+([A-Za-z][A-Za-z\s]{1,60}?)\s+to\s+([A-Za-z][A-Za-z\s]{1,60}?)(?=\s+(?:depart(?:ing|ure)?|leav(?:e|ing)|return(?:ing)?|with\b|for\b|on\b)|$)/i);
+  if (routeMatch) {
+    out.from = routeMatch[1].trim();
+    out.to = routeMatch[2].trim();
+  }
+
+  const departureMatch = raw.match(/\b(?:depart(?:ing|ure)?|leav(?:e|ing)|on)\s+(.+?)(?=\s+\breturn(?:ing)?\b|\s+\bwith\b|\s+\bfor\s+\d+\s+travelers?\b|$)/i);
+  if (departureMatch) out.departurePhrase = departureMatch[1].trim();
+
+  const returnMatch = raw.match(/\breturn(?:ing)?\s+(.+?)(?=\s+\bwith\b|\s+\bfor\s+\d+\s+travelers?\b|$)/i);
+  if (returnMatch) out.returnPhrase = returnMatch[1].trim();
+
+  const travelersMatch = raw.match(/\bfor\s+(\d+)\s+travelers?\b/i) || raw.match(/\b(\d+)\s+travelers?\b/i);
+  if (travelersMatch) out.travelers = parseInt(travelersMatch[1], 10);
+
+  return out;
+}
+
 function parseTimeParts(text) {
   const source = String(text || '').toLowerCase();
   const match =
@@ -360,6 +382,31 @@ async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
         (!Number.isNaN(new Date(whenPhrase).getTime()) ? new Date(whenPhrase) : null) ||
         await conversationEngine.parseNaturalDateTime(whenPhrase);
       if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.date = parsed.toISOString();
+    }
+  }
+
+  if (botType === 'travel') {
+    const travelData = extractTravelData(userMessage);
+    if (!nextData.from && travelData.from) nextData.from = travelData.from;
+    if (!nextData.to && travelData.to) nextData.to = travelData.to;
+    if (!nextData.travelers && Number.isFinite(travelData.travelers)) nextData.travelers = travelData.travelers;
+
+    if (travelData.departurePhrase && !nextData.departureDate) {
+      const parsedDeparture = parseDatePhraseLocally(travelData.departurePhrase) ||
+        (!Number.isNaN(new Date(travelData.departurePhrase).getTime()) ? new Date(travelData.departurePhrase) : null) ||
+        await conversationEngine.parseNaturalDateTime(travelData.departurePhrase);
+      if (parsedDeparture instanceof Date && !isNaN(parsedDeparture.getTime())) {
+        nextData.departureDate = parsedDeparture.toISOString();
+      }
+    }
+
+    if (travelData.returnPhrase && !nextData.returnDate) {
+      const parsedReturn = parseDatePhraseLocally(travelData.returnPhrase) ||
+        (!Number.isNaN(new Date(travelData.returnPhrase).getTime()) ? new Date(travelData.returnPhrase) : null) ||
+        await conversationEngine.parseNaturalDateTime(travelData.returnPhrase);
+      if (parsedReturn instanceof Date && !isNaN(parsedReturn.getTime())) {
+        nextData.returnDate = parsedReturn.toISOString();
+      }
     }
   }
 
