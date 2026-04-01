@@ -305,7 +305,7 @@ async function completeBot(conversation, userObj = {}) {
   
   let resp = `${ (botDef.name || botType).toUpperCase() } CREATED!\n\n`;
   resp += generateSummary(data);
-  resp += `\n🆔 Meeting ID: ${saved._id}`;
+  resp += `\n Meeting ID: ${saved._id}`;
 
   
   if (botType === 'meeting') {
