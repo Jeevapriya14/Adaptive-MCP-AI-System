@@ -84,6 +84,26 @@ async function parseNaturalDateTime(text) {
     date = new Date(y, m, d);
   }
 
+  const monthName = s.match(/\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(\d{1,2})(?:,\s*|\s+)(\d{4})\b/);
+  if (monthName) {
+    const monthMap = {
+      jan: 0, january: 0,
+      feb: 1, february: 1,
+      mar: 2, march: 2,
+      apr: 3, april: 3,
+      may: 4,
+      jun: 5, june: 5,
+      jul: 6, july: 6,
+      aug: 7, august: 7,
+      sep: 8, sept: 8, september: 8,
+      oct: 9, october: 9,
+      nov: 10, november: 10,
+      dec: 11, december: 11
+    };
+    const month = monthMap[monthName[1]];
+    date = new Date(Number(monthName[3]), month, Number(monthName[2]));
+  }
+
   if (s.includes('today')) {
     date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   } else if (s.includes('tomorrow')) {
@@ -107,13 +127,19 @@ async function parseNaturalDateTime(text) {
     }
   }
 
+  const explicitTime =
+    s.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/) ||
+    s.match(/\b(\d{1,2})(?::(\d{2}))\s*(am|pm)\b/) ||
+    s.match(/\b(\d{1,2})\s*(am|pm)\b/) ||
+    s.match(/\bat\s+(\d{1,2}):(\d{2})\b/) ||
+    s.match(/\b(\d{1,2}):(\d{2})\b/);
 
-  const t = s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
-  if (t) {
-    let hour = Number(t[1]);
-    const minute = Number(t[2] || 0);
-    if (t[3] === 'pm' && hour < 12) hour += 12;
-    if (t[3] === 'am' && hour === 12) hour = 0;
+  if (explicitTime) {
+    let hour = Number(explicitTime[1]);
+    const minute = Number(explicitTime[2] || 0);
+    const meridian = explicitTime[3] ? explicitTime[3].toLowerCase() : null;
+    if (meridian === 'pm' && hour < 12) hour += 12;
+    if (meridian === 'am' && hour === 12) hour = 0;
     date.setHours(hour, minute, 0, 0);
   } else {
     date.setHours(9,0,0,0);

@@ -114,6 +114,20 @@ function extractMeetingTitle(text) {
   return titleMatch ? titleMatch[1].trim() : null;
 }
 
+function extractReminderTitle(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\bset reminder\s+(.+?)(?=\s+(?:on|for|at|tomorrow|today|next)\b|$)/i,
+    /\bremind me\s+to\s+(.+?)(?=\s+(?:on|for|at|tomorrow|today|next)\b|$)/i,
+    /\breminder\s+(.+?)(?=\s+(?:on|for|at|tomorrow|today|next)\b|$)/i
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match) return match[1].trim();
+  }
+  return null;
+}
+
 function extractQuotedOrEmailStrippedDatePhrase(text) {
   const raw = String(text || '').replace(/\s+/g, ' ').trim();
   const patterns = [
@@ -162,6 +176,15 @@ async function applyRuleBasedExtraction(botType, userMessage, extractedData) {
     }
   }
 
+  if (botType === 'reminder') {
+    if (!nextData.title) nextData.title = extractReminderTitle(userMessage);
+    const whenPhrase = extractQuotedOrEmailStrippedDatePhrase(userMessage);
+    if (whenPhrase && !nextData.date) {
+      const parsed = await conversationEngine.parseNaturalDateTime(whenPhrase);
+      if (parsed instanceof Date && !isNaN(parsed.getTime())) nextData.date = parsed.toISOString();
+    }
+  }
+
   return nextData;
 }
 
@@ -180,6 +203,15 @@ const KEYBANK = {
   recordview: ['show','list','view','fetch','retrieve']
 };
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function keyMatches(msg, key) {
+  if (String(key).includes(' ')) return msg.includes(String(key));
+  return new RegExp(`\\b${escapeRegex(key)}\\b`, 'i').test(msg);
+}
+
 async function detectBot(userMessage) {
   const msg = (userMessage || '').toString().toLowerCase().trim();
   if (!msg) return 'chat';
@@ -196,7 +228,7 @@ async function detectBot(userMessage) {
 
   for (const [bot, keys] of Object.entries(KEYBANK)) {
     for (const w of keys) {
-      if (msg.includes(w)) return bot;
+      if (keyMatches(msg, w)) return bot;
     }
   }
 
